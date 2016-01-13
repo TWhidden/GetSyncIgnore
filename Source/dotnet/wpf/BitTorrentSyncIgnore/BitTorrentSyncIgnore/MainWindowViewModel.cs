@@ -3,12 +3,15 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using BitTorrentSyncIgnore.Bases;
 using BitTorrentSyncIgnore.Collections;
 using BitTorrentSyncIgnore.Helpers.Ionic.Utils;
 using BitTorrentSyncIgnore.Properties;
+using FirstFloor.ModernUI.Windows.Controls;
 using Prism.Commands;
 
 namespace BitTorrentSyncIgnore
@@ -22,6 +25,7 @@ namespace BitTorrentSyncIgnore
         private bool _isBusy;
         private string _busyMessage;
         private DelegateCommand _commandSelectPath;
+        private DelegateCommand _commandSaveChanges;
 
         private const string SyncFolder = ".sync";
         private const string SyncIgnoreFileName = "IgnoreList";
@@ -33,6 +37,9 @@ namespace BitTorrentSyncIgnore
         }
 
         public DelegateCommand CommandSelectPath => _commandSelectPath ?? (_commandSelectPath = new DelegateCommand(OnCommandSelectPath));
+
+        public DelegateCommand CommandSaveChanges
+            => _commandSaveChanges ?? (_commandSaveChanges = new DelegateCommand(OnCommandSaveChanges, OnCommandCanSaveChanges));
 
         public SortableObservableCollection<FileContainer, IComparer<FileContainer>> Files => _files;
 
@@ -48,6 +55,91 @@ namespace BitTorrentSyncIgnore
             {
                 LastPath = dialog.SelectedPath;
             }
+        }
+
+        private bool OnCommandCanSaveChanges()
+        {
+            return IsValidSyncFolder;
+        }
+
+        private void OnCommandSaveChanges()
+        {
+            IsBusy = true;
+            // Rebuild the exclude list here
+            var selectedItems = Files.Where(x => x.IsSelected).ToList();
+
+            // Tell the user the changes that will result in a delete, and how much storage it will make
+            long storageSaved = 0;
+            int filesRemoved = 0;
+            foreach (var fileContainer in selectedItems)
+            {
+                var fullPath = LastPath + fileContainer.RelitivePath;
+                if (Directory.Exists(fullPath))
+                {
+                    var files = Directory.GetFiles(fullPath, "*.*", SearchOption.AllDirectories);
+                    foreach (var file in files)
+                    {
+                        filesRemoved++;
+                        var info = new FileInfo(file);
+                        storageSaved += info.Length;
+                    }
+                }
+            }
+
+            if (filesRemoved > 0)
+            {
+                // prompt the user
+      
+            }
+
+            
+            var sb = new StringBuilder();
+
+            // Identify the text before the FilesBelowComment section, if one exists
+            if (File.Exists(IgnorePath))
+            {
+                var ignoreLines = File.ReadAllLines(IgnorePath);
+                foreach (var ignoreLine in ignoreLines)
+                {
+                    if (ignoreLine.Contains(FilesBelowComment))
+                    {
+                        break;
+                    }
+                    sb.Append(ignoreLine);
+                    sb.Append(Environment.NewLine);
+                }
+            }
+
+            sb.Append(FilesBelowComment);
+            sb.Append(Environment.NewLine);
+
+            foreach (var fileContainer in selectedItems)
+            {
+                sb.Append(fileContainer.RelitivePath);
+                sb.Append(Environment.NewLine);
+            }
+
+            // Add to the ignore
+
+            var newText = sb.ToString();
+            File.WriteAllText(IgnorePath, newText);
+
+            foreach (var fileContainer in selectedItems)
+            {
+                // Purge the directory, now that it exists
+                if (fileContainer.IsFolder)
+                {
+                    var fullPath = LastPath + fileContainer.RelitivePath;
+                    if (Directory.Exists(fullPath))
+                    {
+                        BusyMessage = $"Deleting folder {fullPath}";
+                        Directory.Delete(fullPath, true);
+                    }
+                }
+            }
+
+            IsBusy = false;
+
         }
 
         /// <summary>
@@ -91,10 +183,14 @@ namespace BitTorrentSyncIgnore
             var path = Path.Combine(LastPath, SyncFolder);
             IsValidSyncFolder = Directory.Exists(path);
 
+            CommandSaveChanges.RaiseCanExecuteChanged();
+
             if (!IsValidSyncFolder) return;
 
             LoadPath();
         }
+
+        private string IgnorePath => Path.Combine(LastPath, SyncFolder, SyncIgnoreFileName);
 
         private async void LoadPath()
         {
@@ -133,12 +229,10 @@ namespace BitTorrentSyncIgnore
 
                  BusyMessage = "Reading Ignore File...";
 
-                                       var ignoreFile = Path.Combine(LastPath, SyncFolder, SyncIgnoreFileName);
 
-
-                                       if (File.Exists(ignoreFile))
+                                       if (File.Exists(IgnorePath))
                                        {
-                                           var ignoreLines = File.ReadAllLines(ignoreFile);
+                                           var ignoreLines = File.ReadAllLines(IgnorePath);
                                            bool hitIgnore = false;
                                            foreach (var line in ignoreLines)
                                            {
@@ -158,8 +252,8 @@ namespace BitTorrentSyncIgnore
                                                var container = _fileDic.GetOrAdd(line,
                                                    (x) =>
                                                    {
-                                                       var result = new FileContainer(x, false);
-                                                       _files.Add(result);
+                                                       var result = new FileContainer(x, true);
+                                                       Dispatcher.BeginInvoke((Action)(() => _files.Add(result)));
                                                        return result;
                                                    });
 
