@@ -79,6 +79,7 @@
     <Compile Include="Bases\ViewModelBase.cs" />
     <Compile Include="Controls\BusyIndicator.cs" />
     <Compile Include="Controls\VisualStates.cs" />
+    <Compile Include="Converter\InverseBooleanConverter.cs" />
     <Compile Include="Converter\InverseVisibilityConverter.cs" />
     <Compile Include="Converter\VisibilityConverter.cs" />
     <Compile Include="Helpers\FolderBroswerDialogEx.cs">

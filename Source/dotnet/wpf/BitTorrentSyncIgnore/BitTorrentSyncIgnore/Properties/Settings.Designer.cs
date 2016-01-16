@@ -34,5 +34,17 @@ namespace BitTorrentSyncIgnore.Properties {
                 this["LastPath"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool IsLinux {
+            get {
+                return ((bool)(this["IsLinux"]));
+            }
+            set {
+                this["IsLinux"] = value;
+            }
+        }
     }
 }

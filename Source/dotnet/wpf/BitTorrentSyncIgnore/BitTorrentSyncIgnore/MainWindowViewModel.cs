@@ -26,6 +26,7 @@ namespace BitTorrentSyncIgnore
         private string _busyMessage;
         private DelegateCommand _commandSelectPath;
         private DelegateCommand _commandSaveChanges;
+        private bool _isLinux = Settings.Default.IsLinux;
 
         private const string SyncFolder = ".sync";
         private const string SyncIgnoreFileName = "IgnoreList";
@@ -140,7 +141,7 @@ namespace BitTorrentSyncIgnore
                                                if (fileContainer.IsFolder)
                                                {
                                                    var fullPath = LastPath + Path.DirectorySeparatorChar +
-                                                                  fileContainer.RelitivePath;
+                                                                  fileContainer.RelitivePath.Replace(DirectorySeperator, Path.DirectorySeparatorChar);
                                                    if (Directory.Exists(fullPath))
                                                    {
                                                        BusyMessage = $"Deleting folder {fullPath}";
@@ -187,6 +188,21 @@ namespace BitTorrentSyncIgnore
             }
         }
 
+        public bool IsLinux
+        {
+            get { return _isLinux; }
+            set {
+                if (SetProperty(ref _isLinux, value))
+                {
+                    Settings.Default.IsLinux = value;
+                    Settings.Default.Save();
+                    ValidateIsSyncFolder();
+                }
+            }
+        }
+
+        private char DirectorySeperator => IsLinux ? '/' : '\\';
+
         public bool IsBusy
         {
             get { return _isBusy; }
@@ -226,7 +242,7 @@ namespace BitTorrentSyncIgnore
 
                 foreach (var folder in folders)
                 {
-                    var relitivePath = folder.Replace(LastPath + Path.DirectorySeparatorChar, "");
+                    var relitivePath = folder.Replace(LastPath, "").Replace(Path.DirectorySeparatorChar, DirectorySeperator);
 
                     if (relitivePath.Contains(SyncFolder)) continue;
 

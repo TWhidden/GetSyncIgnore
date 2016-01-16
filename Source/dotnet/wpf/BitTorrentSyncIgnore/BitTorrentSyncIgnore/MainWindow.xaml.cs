@@ -9,8 +9,15 @@ namespace BitTorrentSyncIgnore
     {
         public MainWindow()
         {
+            
             InitializeComponent();
+            
+        }
+
+        public override void OnApplyTemplate()
+        {
             this.DataContext = new MainWindowViewModel();
+            base.OnApplyTemplate();
         }
     }
 }
