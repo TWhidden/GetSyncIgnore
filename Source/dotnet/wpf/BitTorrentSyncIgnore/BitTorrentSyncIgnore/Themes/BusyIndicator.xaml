@@ -1,0 +1,579 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"  xmlns:sys="clr-namespace:System;assembly=mscorlib"
+                    xmlns:BusyIndicator="clr-namespace:BitTorrentSyncIgnore.Controls">
+    <Geometry x:Key="ProgressSliderThumbOuterBorderGeometry">M -5,-9.5 A 1 1 0 0 1 -4,-10.5 L 4,-10.5 A 1 1 0 0 1 5,-9.5 L 5,9.5 A 1 1 0 0 1 4,10.5 L -4,10.5 A 1 1 0 0 1 -5,9.5 Z</Geometry>
+    <Style x:Key="BusyProgressSliderThumbStyle"
+           TargetType="{x:Type Thumb}">
+        <Setter Property="Focusable"
+                Value="false" />
+        <Setter Property="OverridesDefaultStyle"
+                Value="true" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Thumb}">
+                    <Canvas SnapsToDevicePixels="true"
+                           >
+                        <Path x:Name="OuterBorder"
+                              Data="{StaticResource ProgressSliderThumbOuterBorderGeometry}"
+                              Fill="{TemplateBinding Foreground}"
+                              StrokeThickness="0"
+                              Width="4"
+                              Height="4"
+                              Canvas.Left="0"
+                              Canvas.Top="0" Visibility="Collapsed" />
+                        <Ellipse   Fill="{TemplateBinding Foreground}" Height="8" StrokeThickness="0" Width="8">
+                        	<Ellipse.CacheMode>
+                        		<BitmapCache RenderAtScale="3"/>
+                        	</Ellipse.CacheMode>
+                        </Ellipse>
+                    </Canvas>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="BusyProgressSliderStyle"
+           TargetType="{x:Type Slider}">
+        <Setter Property="Maximum"
+                Value="3000" />
+        <Setter Property="Minimum"
+                Value="0" />
+        <Setter Property="Value"
+                Value="0" />
+        <Setter Property="Opacity"
+                Value="0" />
+        <Setter Property="IsTabStop"
+                Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Slider}">
+                    <Border SnapsToDevicePixels="true">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto"
+                                               MinHeight="{TemplateBinding MinHeight}" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Track x:Name="PART_Track"
+                                   Grid.Row="1">
+                                <Track.Thumb>
+                                    <Thumb x:Name="Thumb"
+                                           Style="{StaticResource BusyProgressSliderThumbStyle}"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           Width="4"
+                                           Height="4" />
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation"
+                     Value="Vertical">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Slider}">
+                            <Border BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Background="{TemplateBinding Background}"
+                                    SnapsToDevicePixels="true">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition MinWidth="{TemplateBinding MinWidth}"
+                                                          Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TickBar x:Name="TopTick"
+                                             Grid.Column="0"
+                                             Fill="{TemplateBinding Foreground}"
+                                             Placement="Left"
+                                             Visibility="Collapsed"
+                                             Width="4" />
+                                    <TickBar x:Name="BottomTick"
+                                             Grid.Column="2"
+                                             Fill="{TemplateBinding Foreground}"
+                                             Placement="Right"
+                                             Visibility="Collapsed"
+                                             Width="4" />
+                                    <Border x:Name="TrackBackground"
+                                            BorderThickness="1"
+                                            Grid.Column="1"
+                                            CornerRadius="1"
+                                            HorizontalAlignment="center"
+                                            Margin="0,5"
+                                            Width="4.0">
+                                        <Canvas Margin="-1,-6">
+                                            <Rectangle x:Name="PART_SelectionRange"
+                                                       Fill="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"
+                                                       Stroke="{DynamicResource {x:Static SystemColors.ControlDarkDarkBrushKey}}"
+                                                       StrokeThickness="1.0"
+                                                       Visibility="Hidden"
+                                                       Width="4.0" />
+                                        </Canvas>
+                                    </Border>
+                                    <Track x:Name="PART_Track"
+                                           Grid.Column="1" />
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="TickPlacement"
+                                         Value="TopLeft">
+                                    <Setter Property="Visibility"
+                                            TargetName="TopTick"
+                                            Value="Visible" />
+
+                                    <Setter Property="Margin"
+                                            TargetName="TrackBackground"
+                                            Value="2,5,0,5" />
+                                </Trigger>
+                                <Trigger Property="TickPlacement"
+                                         Value="BottomRight">
+                                    <Setter Property="Visibility"
+                                            TargetName="BottomTick"
+                                            Value="Visible" />
+
+                                    <Setter Property="Margin"
+                                            TargetName="TrackBackground"
+                                            Value="0,5,2,5" />
+                                </Trigger>
+                                <Trigger Property="TickPlacement"
+                                         Value="Both">
+                                    <Setter Property="Visibility"
+                                            TargetName="TopTick"
+                                            Value="Visible" />
+                                    <Setter Property="Visibility"
+                                            TargetName="BottomTick"
+                                            Value="Visible" />
+                                </Trigger>
+                                <Trigger Property="IsSelectionRangeEnabled"
+                                         Value="true">
+                                    <Setter Property="Visibility"
+                                            TargetName="PART_SelectionRange"
+                                            Value="Visible" />
+                                </Trigger>
+
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <ControlTemplate x:Key="BusyProgressBarControlTemplate"
+                     TargetType="{x:Type ProgressBar}">
+        <Grid x:Name="TemplateRoot"
+              SnapsToDevicePixels="True">
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Determinate" />
+                    <VisualState x:Name="Indeterminate">
+                        <Storyboard Duration="00:00:04.4"
+                                    RepeatBehavior="Forever">
+                            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Visibility)"
+                                                           Storyboard.TargetName="IndeterminateRoot">
+                                <DiscreteObjectKeyFrame KeyTime="0"
+                                                        Value="{x:Static Visibility.Visible}" />
+                            </ObjectAnimationUsingKeyFrames>
+                            <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="Value"
+                                                           Storyboard.TargetName="Slider1">
+                                <EasingDoubleKeyFrame KeyTime="00:00:00.5"
+                                                      Value="1000">
+                                    <EasingDoubleKeyFrame.EasingFunction>
+                                        <ExponentialEase EasingMode="EaseOut"
+                                                         Exponent="1" />
+                                    </EasingDoubleKeyFrame.EasingFunction>
+                                </EasingDoubleKeyFrame>
+                                <LinearDoubleKeyFrame KeyTime="00:00:02.0"
+                                                      Value="2000" />
+                                <EasingDoubleKeyFrame KeyTime="00:00:02.5"
+                                                      Value="3000">
+                                    <EasingDoubleKeyFrame.EasingFunction>
+                                        <ExponentialEase EasingMode="EaseIn"
+                                                         Exponent="1" />
+                                    </EasingDoubleKeyFrame.EasingFunction>
+                                </EasingDoubleKeyFrame>
+                            </DoubleAnimationUsingKeyFrames>
+                            <DoubleAnimationUsingKeyFrames BeginTime="00:00:00.2"
+                                                           Storyboard.TargetProperty="Value"
+                                                           Storyboard.TargetName="Slider2">
+                                <EasingDoubleKeyFrame KeyTime="00:00:00.5"
+                                                      Value="1000">
+                                    <EasingDoubleKeyFrame.EasingFunction>
+                                        <ExponentialEase EasingMode="EaseOut"
+                                                         Exponent="1" />
+                                    </EasingDoubleKeyFrame.EasingFunction>
+                                </EasingDoubleKeyFrame>
+                                <LinearDoubleKeyFrame KeyTime="00:00:02.0"
+                                                      Value="2000" />
+                                <EasingDoubleKeyFrame KeyTime="00:00:02.5"
+                                                      Value="3000">
+                                    <EasingDoubleKeyFrame.EasingFunction>
+                                        <ExponentialEase EasingMode="EaseIn"
+                                                         Exponent="1" />
+                                    </EasingDoubleKeyFrame.EasingFunction>
+                                </EasingDoubleKeyFrame>
+                            </DoubleAnimationUsingKeyFrames>
+                            <DoubleAnimationUsingKeyFrames BeginTime="00:00:00.4"
+                                                           Storyboard.TargetProperty="Value"
+                                                           Storyboard.TargetName="Slider3">
+                                <EasingDoubleKeyFrame KeyTime="00:00:00.5"
+                                                      Value="1000">
+                                    <EasingDoubleKeyFrame.EasingFunction>
+                                        <ExponentialEase EasingMode="EaseOut"
+                                                         Exponent="1" />
+                                    </EasingDoubleKeyFrame.EasingFunction>
+                                </EasingDoubleKeyFrame>
+                                <LinearDoubleKeyFrame KeyTime="00:00:02.0"
+                                                      Value="2000" />
+                                <EasingDoubleKeyFrame KeyTime="00:00:02.5"
+                                                      Value="3000">
+                                    <EasingDoubleKeyFrame.EasingFunction>
+                                        <ExponentialEase EasingMode="EaseIn"
+                                                         Exponent="1" />
+                                    </EasingDoubleKeyFrame.EasingFunction>
+                                </EasingDoubleKeyFrame>
+                            </DoubleAnimationUsingKeyFrames>
+                            <DoubleAnimationUsingKeyFrames BeginTime="00:00:00.6"
+                                                           Storyboard.TargetProperty="Value"
+                                                           Storyboard.TargetName="Slider4">
+                                <EasingDoubleKeyFrame KeyTime="00:00:00.5"
+                                                      Value="1000">
+                                    <EasingDoubleKeyFrame.EasingFunction>
+                                        <ExponentialEase EasingMode="EaseOut"
+                                                         Exponent="1" />
+                                    </EasingDoubleKeyFrame.EasingFunction>
+                                </EasingDoubleKeyFrame>
+                                <LinearDoubleKeyFrame KeyTime="00:00:02.0"
+                                                      Value="2000" />
+                                <EasingDoubleKeyFrame KeyTime="00:00:02.5"
+                                                      Value="3000">
+                                    <EasingDoubleKeyFrame.EasingFunction>
+                                        <ExponentialEase EasingMode="EaseIn"
+                                                         Exponent="1" />
+                                    </EasingDoubleKeyFrame.EasingFunction>
+                                </EasingDoubleKeyFrame>
+                            </DoubleAnimationUsingKeyFrames>
+                            <DoubleAnimationUsingKeyFrames BeginTime="00:00:00.8"
+                                                           Storyboard.TargetProperty="Value"
+                                                           Storyboard.TargetName="Slider5">
+                                <EasingDoubleKeyFrame KeyTime="00:00:00.5"
+                                                      Value="1000">
+                                    <EasingDoubleKeyFrame.EasingFunction>
+                                        <ExponentialEase EasingMode="EaseOut"
+                                                         Exponent="1" />
+                                    </EasingDoubleKeyFrame.EasingFunction>
+                                </EasingDoubleKeyFrame>
+                                <LinearDoubleKeyFrame KeyTime="00:00:02.0"
+                                                      Value="2000" />
+                                <EasingDoubleKeyFrame KeyTime="00:00:02.5"
+                                                      Value="3000">
+                                    <EasingDoubleKeyFrame.EasingFunction>
+                                        <ExponentialEase EasingMode="EaseIn"
+                                                         Exponent="1" />
+                                    </EasingDoubleKeyFrame.EasingFunction>
+                                </EasingDoubleKeyFrame>
+                            </DoubleAnimationUsingKeyFrames>
+                            <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="Opacity"
+                                                           Storyboard.TargetName="Slider1">
+                                <DiscreteDoubleKeyFrame KeyTime="0"
+                                                        Value="1" />
+                                <DiscreteDoubleKeyFrame KeyTime="00:00:02.5"
+                                                        Value="0" />
+                            </DoubleAnimationUsingKeyFrames>
+                            <DoubleAnimationUsingKeyFrames BeginTime="00:00:00.2"
+                                                           Storyboard.TargetProperty="Opacity"
+                                                           Storyboard.TargetName="Slider2">
+                                <DiscreteDoubleKeyFrame KeyTime="0"
+                                                        Value="1" />
+                                <DiscreteDoubleKeyFrame KeyTime="00:00:02.5"
+                                                        Value="0" />
+                            </DoubleAnimationUsingKeyFrames>
+                            <DoubleAnimationUsingKeyFrames BeginTime="00:00:00.4"
+                                                           Storyboard.TargetProperty="Opacity"
+                                                           Storyboard.TargetName="Slider3">
+                                <DiscreteDoubleKeyFrame KeyTime="0"
+                                                        Value="1" />
+                                <DiscreteDoubleKeyFrame KeyTime="00:00:02.5"
+                                                        Value="0" />
+                            </DoubleAnimationUsingKeyFrames>
+                            <DoubleAnimationUsingKeyFrames BeginTime="00:00:00.6"
+                                                           Storyboard.TargetProperty="Opacity"
+                                                           Storyboard.TargetName="Slider4">
+                                <DiscreteDoubleKeyFrame KeyTime="0"
+                                                        Value="1" />
+                                <DiscreteDoubleKeyFrame KeyTime="00:00:02.5"
+                                                        Value="0" />
+                            </DoubleAnimationUsingKeyFrames>
+                            <DoubleAnimationUsingKeyFrames BeginTime="00:00:00.8"
+                                                           Storyboard.TargetProperty="Opacity"
+                                                           Storyboard.TargetName="Slider5">
+                                <DiscreteDoubleKeyFrame KeyTime="0"
+                                                        Value="1" />
+                                <DiscreteDoubleKeyFrame KeyTime="00:00:02.5"
+                                                        Value="0" />
+                            </DoubleAnimationUsingKeyFrames>
+                            <ThicknessAnimationUsingKeyFrames Storyboard.TargetProperty="(FrameworkElement.Margin)"
+                                                              Storyboard.TargetName="IndeterminateRoot">
+                                <EasingThicknessKeyFrame KeyTime="0"
+                                                         Value="0" />
+                            </ThicknessAnimationUsingKeyFrames>
+                        </Storyboard>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+            <Border x:Name="IndeterminateRoot"
+                    Margin="0"
+                    Visibility="Collapsed"
+                    VerticalAlignment="Top">
+                <Grid>
+                    <Slider x:Name="Slider1"
+                            Foreground="{TemplateBinding Foreground}"
+                            Style="{StaticResource BusyProgressSliderStyle}" />
+                    <Slider x:Name="Slider2"
+                            Foreground="{TemplateBinding Foreground}"
+                            Style="{StaticResource BusyProgressSliderStyle}" />
+                    <Slider x:Name="Slider3"
+                            Foreground="{TemplateBinding Foreground}"
+                            Style="{StaticResource BusyProgressSliderStyle}" />
+                    <Slider x:Name="Slider4"
+                            Foreground="{TemplateBinding Foreground}"
+                            Style="{StaticResource BusyProgressSliderStyle}" />
+                    <Slider x:Name="Slider5"
+                            Foreground="{TemplateBinding Foreground}"
+                            Style="{StaticResource BusyProgressSliderStyle}" />
+                </Grid>
+            </Border>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="Orientation"
+                     Value="Vertical">
+                <Setter Property="LayoutTransform"
+                        TargetName="TemplateRoot">
+                    <Setter.Value>
+                        <RotateTransform Angle="-90" />
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+            <Trigger Property="IsIndeterminate"
+                     Value="True" />
+            <Trigger Property="IsIndeterminate"
+                     Value="False" />
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <Style x:Key="BusyProgressBarStyle"
+           TargetType="{x:Type ProgressBar}">
+        <Setter Property="IsIndeterminate"
+                Value="True" />
+        <Setter Property="Height"
+                Value="15" />
+        <Setter Property="Margin"
+                Value="8,0,8,8" />
+        <Setter Property="Foreground"
+                Value="#FF019ED3" />
+        <Setter Property="Template"
+                Value="{StaticResource BusyProgressBarControlTemplate}" />
+    </Style>
+
+
+
+    <!-- =============================================================================== -->
+    <Style TargetType="{x:Type BusyIndicator:BusyIndicator}">
+        <Setter Property="Content"
+                Value="" />
+        <Setter Property="BusyContent"
+                Value="please wait..." />
+        <Setter Property="IsTabStop"
+                Value="False" />
+        <Setter Property="OverlayStyle">
+            <Setter.Value>
+                <Style TargetType="{x:Type Rectangle}">
+                    <Setter Property="Fill"
+                            Value="White" />
+                    <Setter Property="Opacity"
+                            Value="0.5" />
+                </Style>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="ProgressBarStyle"
+                Value="{StaticResource BusyProgressBarStyle}" />
+
+        <Setter Property="DisplayAfter"
+                Value="00:00:00.1" />
+        <Setter Property="HorizontalAlignment"
+                Value="Stretch" />
+        <Setter Property="VerticalAlignment"
+                Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment"
+                Value="Stretch" />
+        <Setter Property="VerticalContentAlignment"
+                Value="Bottom" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type BusyIndicator:BusyIndicator}">
+                    <Grid x:Name="busyIndicatorGrid"
+                          RenderTransformOrigin="0.5,0.5"
+                        >
+                        <Grid.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform />
+                                <SkewTransform />
+                                <RotateTransform />
+                                <TranslateTransform />
+                            </TransformGroup>
+                        </Grid.RenderTransform>
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="VisibilityStates">
+                                <VisualState x:Name="Hidden">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames BeginTime="00:00:00"
+                                                                       Duration="00:00:00.001"
+                                                                       Storyboard.TargetName="busycontent"
+                                                                       Storyboard.TargetProperty="(UIElement.Visibility)">
+                                            <DiscreteObjectKeyFrame KeyTime="0">
+                                                <DiscreteObjectKeyFrame.Value>
+                                                    <Visibility>Collapsed</Visibility>
+                                                </DiscreteObjectKeyFrame.Value>
+                                            </DiscreteObjectKeyFrame>
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames BeginTime="00:00:00"
+                                                                       Duration="00:00:00.001"
+                                                                       Storyboard.TargetName="BusyContentPresenter"
+                                                                       Storyboard.TargetProperty="(UIElement.Visibility)">
+                                            <DiscreteObjectKeyFrame KeyTime="0"
+                                                                    Value="{x:Static Visibility.Collapsed}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames BeginTime="00:00:00"
+                                                                       Duration="00:00:00.001"
+                                                                       Storyboard.TargetName="overlay"
+                                                                       Storyboard.TargetProperty="(UIElement.Visibility)">
+                                            <DiscreteObjectKeyFrame KeyTime="00:00:00">
+                                                <DiscreteObjectKeyFrame.Value>
+                                                    <Visibility>Collapsed</Visibility>
+                                                </DiscreteObjectKeyFrame.Value>
+                                            </DiscreteObjectKeyFrame>
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Visibility)"
+                                                                       Storyboard.TargetName="content">
+                                            <DiscreteObjectKeyFrame KeyTime="0"
+                                                                    Value="{x:Static Visibility.Collapsed}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Visible">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames BeginTime="00:00:00"
+                                                                       Duration="00:00:00.001"
+                                                                       Storyboard.TargetName="busycontent"
+                                                                       Storyboard.TargetProperty="(UIElement.Visibility)">
+                                            <DiscreteObjectKeyFrame KeyTime="00:00:00"
+                                                                    Value="{x:Static Visibility.Visible}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames BeginTime="00:00:00"
+                                                                       Duration="00:00:00.001"
+                                                                       Storyboard.TargetName="BusyContentPresenter"
+                                                                       Storyboard.TargetProperty="(UIElement.Visibility)">
+                                            <DiscreteObjectKeyFrame KeyTime="00:00:00"
+                                                                    Value="{x:Static Visibility.Visible}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames BeginTime="00:00:00"
+                                                                       Duration="00:00:00.001"
+                                                                       Storyboard.TargetName="overlay"
+                                                                       Storyboard.TargetProperty="(UIElement.Visibility)">
+                                            <DiscreteObjectKeyFrame KeyTime="00:00:00"
+                                                                    Value="{x:Static Visibility.Visible}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="(UIElement.Visibility)"
+                                                                       Storyboard.TargetName="content">
+                                            <DiscreteObjectKeyFrame KeyTime="0"
+                                                                    Value="{x:Static Visibility.Visible}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="BusyStatusStates">
+                                <VisualState x:Name="Idle">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames BeginTime="00:00:00"
+                                                                       Duration="00:00:00.001"
+                                                                       Storyboard.TargetName="content"
+                                                                       Storyboard.TargetProperty="(UIElement.IsEnabled)">
+                                            <DiscreteObjectKeyFrame KeyTime="00:00:00">
+                                                <DiscreteObjectKeyFrame.Value>
+                                                    <sys:Boolean>True</sys:Boolean>
+                                                </DiscreteObjectKeyFrame.Value>
+                                            </DiscreteObjectKeyFrame>
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Busy">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames BeginTime="00:00:00"
+                                                                       Duration="00:00:00.001"
+                                                                       Storyboard.TargetName="content"
+                                                                       Storyboard.TargetProperty="(UIElement.IsEnabled)">
+                                            <DiscreteObjectKeyFrame KeyTime="00:00:00">
+                                                <DiscreteObjectKeyFrame.Value>
+                                                    <sys:Boolean>False</sys:Boolean>
+                                                </DiscreteObjectKeyFrame.Value>
+                                            </DiscreteObjectKeyFrame>
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <Rectangle x:Name="overlay"
+                                   Style="{TemplateBinding OverlayStyle}" />
+                        <ContentControl x:Name="content"
+                                        Content="{TemplateBinding Content}"
+                                        ContentTemplate="{TemplateBinding ContentTemplate}"
+                                        HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                        VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                        RenderTransformOrigin="0.5,0.5"
+                                        VerticalAlignment="Stretch">
+                            <ContentControl.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform />
+                                    <SkewTransform />
+                                    <RotateTransform />
+                                    <TranslateTransform />
+                                </TransformGroup>
+                            </ContentControl.RenderTransform>
+                        </ContentControl>
+                        <ContentPresenter x:Name="BusyContentPresenter"
+                                          Content="{TemplateBinding BusyContent}"
+                                          ContentTemplate="{TemplateBinding BusyContentTemplate}"
+                                          Margin="8"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        <Grid x:Name="busycontent"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch">
+                            <Border Background="{x:Null}"
+                                    BorderThickness="2"
+                                    CornerRadius="0"
+                                    BorderBrush="{x:Null}">
+                                <Border CornerRadius="0"
+                                        Margin="2"
+                                        Background="{x:Null}">
+                                    <Grid MinWidth="150">
+
+                                        <ProgressBar Grid.Row="1" x:Name="PART_ProgressBar"
+                                                     HorizontalAlignment="Stretch"
+                                                     VerticalAlignment="Stretch"
+                                                     Style="{TemplateBinding ProgressBarStyle}" />
+                                    </Grid>
+                                </Border>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

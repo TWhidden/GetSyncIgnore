@@ -29,7 +29,7 @@ namespace BitTorrentSyncIgnore
 
         private const string SyncFolder = ".sync";
         private const string SyncIgnoreFileName = "IgnoreList";
-        private const string FilesBelowComment = "# BitTorrentSync Ignore Program - Only files below are managed#";
+        private const string FilesBelowComment = "# BitTorrentSync Ignore Program - Only files below are managed #";
 
         public MainWindowViewModel()
         {
@@ -62,83 +62,105 @@ namespace BitTorrentSyncIgnore
             return IsValidSyncFolder;
         }
 
-        private void OnCommandSaveChanges()
+        private async void OnCommandSaveChanges()
         {
-            IsBusy = true;
-            // Rebuild the exclude list here
-            var selectedItems = Files.Where(x => x.IsSelected).ToList();
-
-            // Tell the user the changes that will result in a delete, and how much storage it will make
-            long storageSaved = 0;
-            int filesRemoved = 0;
-            foreach (var fileContainer in selectedItems)
-            {
-                var fullPath = LastPath + fileContainer.RelitivePath;
-                if (Directory.Exists(fullPath))
-                {
-                    var files = Directory.GetFiles(fullPath, "*.*", SearchOption.AllDirectories);
-                    foreach (var file in files)
-                    {
-                        filesRemoved++;
-                        var info = new FileInfo(file);
-                        storageSaved += info.Length;
-                    }
-                }
-            }
-
-            if (filesRemoved > 0)
-            {
-                // prompt the user
-      
-            }
-
             
-            var sb = new StringBuilder();
 
-            // Identify the text before the FilesBelowComment section, if one exists
-            if (File.Exists(IgnorePath))
-            {
-                var ignoreLines = File.ReadAllLines(IgnorePath);
-                foreach (var ignoreLine in ignoreLines)
-                {
-                    if (ignoreLine.Contains(FilesBelowComment))
-                    {
-                        break;
-                    }
-                    sb.Append(ignoreLine);
-                    sb.Append(Environment.NewLine);
-                }
-            }
+            var t = Task.Run(() => {
 
-            sb.Append(FilesBelowComment);
-            sb.Append(Environment.NewLine);
+                                       try
+                                       {
 
-            foreach (var fileContainer in selectedItems)
-            {
-                sb.Append(fileContainer.RelitivePath);
-                sb.Append(Environment.NewLine);
-            }
+                                           IsBusy = true;
+                                           // Rebuild the exclude list here
+                                           var selectedItems = Files.Where(x => x.IsSelected).ToList();
 
-            // Add to the ignore
+                                           // Tell the user the changes that will result in a delete, and how much storage it will make
+                                           long storageSaved = 0;
+                                           int filesRemoved = 0;
+                                           foreach (var fileContainer in selectedItems)
+                                           {
+                                               var fullPath = LastPath + fileContainer.RelitivePath;
+                                               if (Directory.Exists(fullPath))
+                                               {
+                                                   var files = Directory.GetFiles(fullPath, "*.*",
+                                                       SearchOption.AllDirectories);
+                                                   foreach (var file in files)
+                                                   {
+                                                       filesRemoved++;
+                                                       var info = new FileInfo(file);
+                                                       storageSaved += info.Length;
+                                                   }
+                                               }
+                                           }
 
-            var newText = sb.ToString();
-            File.WriteAllText(IgnorePath, newText);
+                                           if (filesRemoved > 0)
+                                           {
+                                               // prompt the user
 
-            foreach (var fileContainer in selectedItems)
-            {
-                // Purge the directory, now that it exists
-                if (fileContainer.IsFolder)
-                {
-                    var fullPath = LastPath + fileContainer.RelitivePath;
-                    if (Directory.Exists(fullPath))
-                    {
-                        BusyMessage = $"Deleting folder {fullPath}";
-                        Directory.Delete(fullPath, true);
-                    }
-                }
-            }
+                                           }
 
-            IsBusy = false;
+
+                                           var sb = new StringBuilder();
+
+                                           // Identify the text before the FilesBelowComment section, if one exists
+                                           if (File.Exists(IgnorePath))
+                                           {
+                                               var ignoreLines = File.ReadAllLines(IgnorePath);
+                                               foreach (var ignoreLine in ignoreLines)
+                                               {
+                                                   if (ignoreLine == "\n") continue; // skip any extra empty lines.
+
+                                                   if (ignoreLine.Contains(FilesBelowComment))
+                                                   {
+                                                       break;
+                                                   }
+                                                   sb.Append(ignoreLine);
+                                                   sb.Append("\n");
+                                               }
+                                           }
+
+                                           sb.Append(FilesBelowComment);
+                                           sb.Append("\n");
+
+                                           foreach (var fileContainer in selectedItems)
+                                           {
+                                               sb.Append(fileContainer.RelitivePath);
+                                               sb.Append("\n");
+                                           }
+
+                                           // Add to the ignore
+
+                                           var newText = sb.ToString();
+                                           File.WriteAllText(IgnorePath, newText, Encoding.UTF8);
+
+                                           foreach (var fileContainer in selectedItems)
+                                           {
+                                               // Purge the directory, now that it exists
+                                               if (fileContainer.IsFolder)
+                                               {
+                                                   var fullPath = LastPath + Path.DirectorySeparatorChar +
+                                                                  fileContainer.RelitivePath;
+                                                   if (Directory.Exists(fullPath))
+                                                   {
+                                                       BusyMessage = $"Deleting folder {fullPath}";
+                                                       Directory.Delete(fullPath, true);
+                                                   }
+                                               }
+                                           }
+
+                                           IsBusy = false;
+                                       }
+                                       catch (Exception ex)
+                                       {
+                                           BusyMessage = $"Error removing a folder: {ex.Message}";
+                                       }
+                                       finally
+                                       {
+                                           IsBusy = false;
+                                       }
+            });
+            await t;
 
         }
 
@@ -204,7 +226,7 @@ namespace BitTorrentSyncIgnore
 
                 foreach (var folder in folders)
                 {
-                    var relitivePath = folder.Replace(LastPath, "");
+                    var relitivePath = folder.Replace(LastPath + Path.DirectorySeparatorChar, "");
 
                     if (relitivePath.Contains(SyncFolder)) continue;
 
