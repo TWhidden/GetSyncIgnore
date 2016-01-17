@@ -12,7 +12,7 @@ using System.Windows.Media;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("GetSyncIgnore")]
-[assembly: AssemblyCopyright("Copyright ©  2016")]
+[assembly: AssemblyCopyright("Copyright © Travis Whidden 2016")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -47,5 +47,5 @@ using System.Windows.Media;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.16.0115.0")]
-[assembly: AssemblyFileVersion("1.16.0115.0")]
+[assembly: AssemblyVersion("1.16.0116.0")]
+[assembly: AssemblyFileVersion("1.16.0116.0")]

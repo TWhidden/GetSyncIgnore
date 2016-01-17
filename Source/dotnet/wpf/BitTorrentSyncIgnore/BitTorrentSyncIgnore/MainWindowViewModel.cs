@@ -26,6 +26,7 @@ namespace BitTorrentSyncIgnore
         private string _busyMessage;
         private DelegateCommand _commandSelectPath;
         private DelegateCommand _commandSaveChanges;
+        private DelegateCommand _commandRefresh;
         private bool _isLinux = Settings.Default.IsLinux;
 
         private const string SyncFolder = ".sync";
@@ -41,6 +42,19 @@ namespace BitTorrentSyncIgnore
 
         public DelegateCommand CommandSaveChanges
             => _commandSaveChanges ?? (_commandSaveChanges = new DelegateCommand(OnCommandSaveChanges, OnCommandCanSaveChanges));
+
+        public DelegateCommand CommandRefresh
+            => _commandRefresh ?? (_commandRefresh = new DelegateCommand(OnCommandRefresh, OnCanCommandRefresh));
+
+        private void OnCommandRefresh()
+        {
+            ValidateIsSyncFolder();
+        }
+
+        private bool OnCanCommandRefresh()
+        {
+            return IsValidSyncFolder;
+        }
 
         public SortableObservableCollection<FileContainer, IComparer<FileContainer>> Files => _files;
 
@@ -222,6 +236,7 @@ namespace BitTorrentSyncIgnore
             IsValidSyncFolder = Directory.Exists(path);
 
             CommandSaveChanges.RaiseCanExecuteChanged();
+            CommandRefresh.RaiseCanExecuteChanged();
 
             if (!IsValidSyncFolder) return;
 

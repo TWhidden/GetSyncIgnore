@@ -3,6 +3,7 @@
                     >
     <ResourceDictionary.MergedDictionaries>
          <ResourceDictionary Source="pack://application:,,,/BtSyncIgnore;component/Themes/BusyIndicator.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/BtSyncIgnore;component/Themes/CollectionFilterControl.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
 

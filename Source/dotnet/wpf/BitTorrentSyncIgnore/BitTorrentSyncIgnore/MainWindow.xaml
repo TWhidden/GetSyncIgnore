@@ -26,9 +26,13 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            
+        
         <StackPanel Orientation="Horizontal"
                     VerticalAlignment="Center">
             <TextBlock Text="Select Sync Path: "
@@ -49,27 +53,32 @@
                        Margin="5"
                        VerticalAlignment="Center"
                        FontSize="20" />
-            <CheckBox 
+            <CheckBox Margin="5"
                          Content="LINUX"
                          IsChecked="{Binding IsLinux, Mode=TwoWay}"/>
-            <CheckBox 
+            <CheckBox Margin="5"
                          Content="WINDOWS"
                          IsChecked="{Binding IsLinux, Mode=TwoWay, Converter={StaticResource InverseBooleanConverter}}"/>
         </StackPanel>
+        </ScrollViewer>
+        <controls:CollectionFilterControl x:Name="FilteredElements"
+                                          SourceCollection="{Binding Files}"
+                                          FieldName="RelitivePath" Grid.Row="1"/>
+        
         <TextBlock Text="Please Select a valid BitTorrent Folder to continue."
                    FontSize="20"
                    TextWrapping="Wrap"
-                   Grid.Row="1"
+                   Grid.Row="2"
                    Visibility="{Binding IsValidSyncFolder, Converter={StaticResource InverseVisibilityConverter}}"
                    TextAlignment="Center"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center" />
-        <ListBox ItemsSource="{Binding Files, Mode=OneWay}"
+        <ListBox ItemsSource="{Binding FilteredCollection, Mode=OneWay, ElementName=FilteredElements}"
                  Visibility="{Binding IsValidSyncFolder, Converter={StaticResource VisibilityConverter}}"
-                 Grid.Row="1"
+                 Grid.Row="2"
                  VirtualizingPanel.IsVirtualizing="True"
                  ItemTemplate="{DynamicResource FileFolderTemplate}" />
-        <StackPanel Grid.Row="2"
+        <StackPanel Grid.Row="3"
                     HorizontalAlignment="Center">
             <Button Content="SAVE CHANGES"
                     Command="{Binding CommandSaveChanges}" />
