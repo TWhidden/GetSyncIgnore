@@ -49,6 +49,7 @@
             <Button Content="REFRESH"
                     Command="{Binding CommandRefresh}"
                     Margin="5" />
+            <!--
             <TextBlock Text="BTSync on:"
                        Margin="5"
                        VerticalAlignment="Center"
@@ -59,6 +60,8 @@
             <CheckBox Margin="5"
                          Content="WINDOWS"
                          IsChecked="{Binding IsLinux, Mode=TwoWay, Converter={StaticResource InverseBooleanConverter}}"/>
+            
+            -->
         </StackPanel>
         </ScrollViewer>
         <controls:CollectionFilterControl x:Name="FilteredElements"

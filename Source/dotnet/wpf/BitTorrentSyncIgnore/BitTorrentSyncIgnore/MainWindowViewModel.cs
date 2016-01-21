@@ -79,104 +79,162 @@ namespace BitTorrentSyncIgnore
 
         private async void OnCommandSaveChanges()
         {
-            
+            var t = Task.Run(() =>
+            {
 
-            var t = Task.Run(() => {
+                try
+                {
 
-                                       try
-                                       {
+                    IsBusy = true;
+                    // Rebuild the exclude list here
+                    var selectedItems = Files.Where(x => x.IsSelected).ToList();
 
-                                           IsBusy = true;
-                                           // Rebuild the exclude list here
-                                           var selectedItems = Files.Where(x => x.IsSelected).ToList();
+                    // Tell the user the changes that will result in a delete, and how much storage it will make
+                    long storageSaved = 0;
+                    int filesRemoved = 0;
+                    BusyMessage = $"Building File List";
+                    foreach (var fileContainer in selectedItems)
+                    {
+                        var fullPath = LastPath + fileContainer.RelitivePath;
+                        BusyMessage = $"Scanning for files and folders in: {fullPath}";
+                        if (Directory.Exists(fullPath))
+                        {
+                            var files = Directory.GetFiles(fullPath, "*.*",
+                                SearchOption.AllDirectories);
+                            foreach (var file in files)
+                            {
+                                filesRemoved++;
+                                var info = new FileInfo(file);
+                                storageSaved += info.Length;
+                            }
+                        }
+                    }
 
-                                           // Tell the user the changes that will result in a delete, and how much storage it will make
-                                           long storageSaved = 0;
-                                           int filesRemoved = 0;
-                                           foreach (var fileContainer in selectedItems)
-                                           {
-                                               var fullPath = LastPath + fileContainer.RelitivePath;
-                                               if (Directory.Exists(fullPath))
-                                               {
-                                                   var files = Directory.GetFiles(fullPath, "*.*",
-                                                       SearchOption.AllDirectories);
-                                                   foreach (var file in files)
-                                                   {
-                                                       filesRemoved++;
-                                                       var info = new FileInfo(file);
-                                                       storageSaved += info.Length;
-                                                   }
-                                               }
-                                           }
+                    if (filesRemoved > 0)
+                    {
+                        // prompt the user
 
-                                           if (filesRemoved > 0)
-                                           {
-                                               // prompt the user
-
-                                           }
+                    }
 
 
-                                           var sb = new StringBuilder();
+                    var sb = new StringBuilder();
 
-                                           // Identify the text before the FilesBelowComment section, if one exists
-                                           if (File.Exists(IgnorePath))
-                                           {
-                                               var ignoreLines = File.ReadAllLines(IgnorePath);
-                                               foreach (var ignoreLine in ignoreLines)
-                                               {
-                                                   if (ignoreLine == "\n") continue; // skip any extra empty lines.
+                    BusyMessage = $"Updating IgnoreList..";
+                    // Identify the text before the FilesBelowComment section, if one exists
+                    if (File.Exists(IgnorePath))
+                    {
+                        var ignoreLines = File.ReadAllLines(IgnorePath);
+                        foreach (var ignoreLine in ignoreLines)
+                        {
+                            if (ignoreLine == LineEnding) continue; // skip any extra empty lines.
 
-                                                   if (ignoreLine.Contains(FilesBelowComment))
-                                                   {
-                                                       break;
-                                                   }
-                                                   sb.Append(ignoreLine);
-                                                   sb.Append("\n");
-                                               }
-                                           }
+                            if (ignoreLine.Contains(FilesBelowComment))
+                            {
+                                break;
+                            }
+                            sb.Append(ignoreLine);
+                            sb.Append(LineEnding);
+                        }
+                    }
 
-                                           sb.Append(FilesBelowComment);
-                                           sb.Append("\n");
+                    sb.Append(FilesBelowComment);
+                    sb.Append(LineEnding);
 
-                                           foreach (var fileContainer in selectedItems)
-                                           {
-                                               sb.Append(fileContainer.RelitivePath);
-                                               sb.Append("\n");
-                                           }
+                    foreach (var fileContainer in selectedItems)
+                    {
+                        sb.Append(fileContainer.RelitivePath);
+                        sb.Append(LineEnding);
+                    }
 
-                                           // Add to the ignore
+                    // Add to the ignore
 
-                                           var newText = sb.ToString();
-                                           File.WriteAllText(IgnorePath, newText, Encoding.UTF8);
+                    var newText = sb.ToString();
+                    File.WriteAllText(IgnorePath, newText, Encoding.UTF8);
 
-                                           foreach (var fileContainer in selectedItems)
-                                           {
-                                               // Purge the directory, now that it exists
-                                               if (fileContainer.IsFolder)
-                                               {
-                                                   var fullPath = LastPath + Path.DirectorySeparatorChar +
-                                                                  fileContainer.RelitivePath.Replace(DirectorySeperator, Path.DirectorySeparatorChar);
-                                                   if (Directory.Exists(fullPath))
-                                                   {
-                                                       BusyMessage = $"Deleting folder {fullPath}";
-                                                       Directory.Delete(fullPath, true);
-                                                   }
-                                               }
-                                           }
+                    foreach (var fileContainer in selectedItems)
+                    {
+                        // Purge the directory, now that it exists
+                        if (fileContainer.IsFolder)
+                        {
+                            var fullPath = LastPath + 
+                                           fileContainer.RelitivePath.Replace(
+                                               DirectorySeperator, Path.DirectorySeparatorChar);
+                            if (Directory.Exists(fullPath))
+                            {
+                                BusyMessage = $"Deleting folder {fullPath}";
+                                DeleteRecursiveFolder(fullPath);
+                            }
+                        }
+                    }
 
-                                           IsBusy = false;
-                                       }
-                                       catch (Exception ex)
-                                       {
-                                           BusyMessage = $"Error removing a folder: {ex.Message}";
-                                       }
-                                       finally
-                                       {
-                                           IsBusy = false;
-                                       }
+                    IsBusy = false;
+                }
+                catch (Exception ex)
+                {
+                    BusyMessage = $"Error removing a folder: {ex.Message}";
+                }
+                finally
+                {
+                    IsBusy = false;
+                }
             });
             await t;
 
+        }
+
+        /// <summary>
+        /// Remove folder, as well as dropping any special file attribute
+        /// http://stackoverflow.com/questions/611921/how-do-i-delete-a-directory-with-read-only-files-in-c
+        /// </summary>
+        /// <param name="fileSystemInfo"></param>
+        private void DeleteRecursiveFolder(string pFolderPath)
+        {
+            foreach (string Folder in Directory.GetDirectories(pFolderPath))
+            {
+                DeleteRecursiveFolder(Folder);
+            }
+
+            foreach (string file in Directory.GetFiles(pFolderPath))
+            {
+                var pPath = Path.Combine(pFolderPath, file);
+                FileInfo fi = new FileInfo(pPath);
+                File.SetAttributes(pPath, FileAttributes.Normal);
+                File.Delete(file);
+            }
+
+            Directory.Delete(pFolderPath);
+        }
+
+        /// <summary>
+        /// To auto detect, 
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="newLine"></param>
+        /// <returns></returns>
+        public bool IsWindowsLineEnding(string path)
+        {
+            using (var fileStream = File.OpenRead(path))
+            {
+                char prevChar = '\0';
+
+                // Read the first 4000 characters to try and find a newline
+                for (int i = 0; i < 4000; i++)
+                {
+                    int b;
+                    if ((b = fileStream.ReadByte()) == -1) break;
+
+                    char curChar = (char)b;
+
+                    if (curChar == '\n')
+                    {
+                        return prevChar == '\r';
+                    }
+
+                    prevChar = curChar;
+                }
+
+                return false;
+            }
         }
 
         /// <summary>
@@ -217,6 +275,8 @@ namespace BitTorrentSyncIgnore
 
         private char DirectorySeperator => IsLinux ? '/' : '\\';
 
+        private string LineEnding => IsLinux ? "\n" : "\r\n";
+
         public bool IsBusy
         {
             get { return _isBusy; }
@@ -251,7 +311,18 @@ namespace BitTorrentSyncIgnore
 
             _fileDic.Clear();
             _files.Clear();
-            var t = Task.Run(() => { 
+            var t = Task.Run(() =>
+            {
+
+                BusyMessage = "Detecting if running under windows or linux...";
+
+                if (File.Exists(IgnorePath))
+                {
+                    var windowsLineEndings = IsWindowsLineEnding(IgnorePath);
+                    Dispatcher.BeginInvoke((Action)(() => IsLinux = !windowsLineEndings));
+                    
+                }
+
                 BusyMessage = "Getting Folders...";
                 var folders = Directory.GetDirectories(LastPath, "*.*", SearchOption.AllDirectories);
 
