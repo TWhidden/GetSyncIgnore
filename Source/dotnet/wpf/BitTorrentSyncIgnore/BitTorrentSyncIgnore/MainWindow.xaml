@@ -12,13 +12,22 @@
     <mui:ModernWindow.Resources>
         <BooleanToVisibilityConverter x:Key="VisibilityConverter" />
         <converter:InverseVisibilityConverter x:Key="InverseVisibilityConverter" />
-        <converter:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+        <converter:InverseBooleanConverter x:Key="InverseBooleanConverter" />
         <DataTemplate x:Key="FileFolderTemplate">
             <StackPanel Orientation="Horizontal">
                 <CheckBox IsChecked="{Binding IsSelected}" />
-                <TextBlock Text="{Binding RelitivePath}" />
+                <TextBlock Text="{Binding IgnorePath}"
+                           Margin="5,0,5,0" />
+                <TextBlock Text="{Binding SizeMB, StringFormat='{} - {0:N0} MB'}"
+                           Margin="5,0,5,0" />
             </StackPanel>
         </DataTemplate>
+        <DataTemplate x:Key="SorterTemplate">
+            <TextBlock Text="{Binding Name}" />
+        </DataTemplate>
+        <ItemsPanelTemplate x:Key="SorterListBoxTemplate">
+            <StackPanel Orientation="Horizontal" />
+        </ItemsPanelTemplate>
     </mui:ModernWindow.Resources>
     <mui:ModernWindow.Style>
         <StaticResource ResourceKey="BlankWindow" />
@@ -30,26 +39,43 @@
             <RowDefinition />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-            
-        
-        <StackPanel Orientation="Horizontal"
-                    VerticalAlignment="Center">
-            <TextBlock Text="Select Sync Path: "
-                       Margin="5"
-                       VerticalAlignment="Center"
-                       FontSize="20" />
-            <Button Content="BROWSE"
-                    Command="{Binding CommandSelectPath}"
-                    Margin="5" />
-            <TextBlock Text="{Binding LastPath}"
-                       Margin="5"
-                       VerticalAlignment="Center"
-                       FontSize="20" />
-            <Button Content="REFRESH"
-                    Command="{Binding CommandRefresh}"
-                    Margin="5" />
-            <!--
+        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled">
+            <StackPanel Orientation="Horizontal"
+                        VerticalAlignment="Center">
+                <TextBlock Text="Select Sync Path: "
+                           Margin="5"
+                           VerticalAlignment="Center"
+                           FontSize="20" />
+                <Button Content="BROWSE"
+                        Command="{Binding CommandSelectPath}"
+                        Margin="5" />
+                <TextBlock Text="{Binding LastPath}"
+                           Margin="5"
+                           VerticalAlignment="Center"
+                           FontSize="20" />
+                <Button Content="REFRESH"
+                        Command="{Binding CommandRefresh}"
+                        Margin="5" />
+                <ListBox ItemsSource="{Binding SortOptions}"
+                         SelectedItem="{Binding SortOptionSelected}"
+                         ItemTemplate="{StaticResource SorterTemplate}"
+                         ItemsPanel="{DynamicResource SorterListBoxTemplate}">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="{x:Type ListBoxItem}">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="{x:Type ListBoxItem}">
+                                        <RadioButton IsChecked="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=IsSelected}">
+                                            <ContentPresenter />
+                                        </RadioButton>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+                <!--
             <TextBlock Text="BTSync on:"
                        Margin="5"
                        VerticalAlignment="Center"
@@ -62,12 +88,12 @@
                          IsChecked="{Binding IsLinux, Mode=TwoWay, Converter={StaticResource InverseBooleanConverter}}"/>
             
             -->
-        </StackPanel>
+            </StackPanel>
         </ScrollViewer>
         <controls:CollectionFilterControl x:Name="FilteredElements"
                                           SourceCollection="{Binding Files}"
-                                          FieldName="RelitivePath" Grid.Row="1"/>
-        
+                                          FieldName="IgnorePath"
+                                          Grid.Row="1" />
         <TextBlock Text="Please Select a valid BitTorrent Folder to continue."
                    FontSize="20"
                    TextWrapping="Wrap"

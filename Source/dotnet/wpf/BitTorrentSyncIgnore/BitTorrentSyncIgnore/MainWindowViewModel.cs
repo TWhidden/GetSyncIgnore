@@ -18,7 +18,7 @@ namespace BitTorrentSyncIgnore
 {
     public class MainWindowViewModel : ViewModelBase
     {
-        public readonly SortableObservableCollection<FileContainer, IComparer<FileContainer>> _files = new SortableObservableCollection<FileContainer, IComparer<FileContainer>>(new Sorter());
+        public readonly SortableObservableCollection<FileContainer, IComparer<FileContainer>> _files = new SortableObservableCollection<FileContainer, IComparer<FileContainer>>(new SorterName());
         public readonly ConcurrentDictionary<string, FileContainer> _fileDic = new ConcurrentDictionary<string, FileContainer>();
         private bool _isValidSyncFolder;
         private string _lastPath = Settings.Default.LastPath;
@@ -28,6 +28,8 @@ namespace BitTorrentSyncIgnore
         private DelegateCommand _commandSaveChanges;
         private DelegateCommand _commandRefresh;
         private bool _isLinux = Settings.Default.IsLinux;
+        private IComparer<FileContainer> _selectedSorter;
+        private List<IComparer<FileContainer>> _sortOptions = new List<IComparer<FileContainer>>();
 
         private const string SyncFolder = ".sync";
         private const string SyncIgnoreFileName = "IgnoreList";
@@ -36,6 +38,11 @@ namespace BitTorrentSyncIgnore
         public MainWindowViewModel()
         {
             ValidateIsSyncFolder();
+
+            _selectedSorter = new SorterName();
+
+            SortOptions.Add(_selectedSorter);
+            SortOptions.Add(new SorterSize());
         }
 
         public DelegateCommand CommandSelectPath => _commandSelectPath ?? (_commandSelectPath = new DelegateCommand(OnCommandSelectPath));
@@ -45,6 +52,24 @@ namespace BitTorrentSyncIgnore
 
         public DelegateCommand CommandRefresh
             => _commandRefresh ?? (_commandRefresh = new DelegateCommand(OnCommandRefresh, OnCanCommandRefresh));
+
+        public List<IComparer<FileContainer>> SortOptions
+        {
+            get { return _sortOptions; }
+            set { SetProperty(ref _sortOptions, value); }
+        }
+
+        public IComparer<FileContainer> SortOptionSelected
+        {
+            get { return _selectedSorter; }
+            set
+            {
+                if (SetProperty(ref _selectedSorter, value))
+                {
+                    Files.ChangeSort(value);
+                }
+            }
+        }
 
         private void OnCommandRefresh()
         {
@@ -95,7 +120,7 @@ namespace BitTorrentSyncIgnore
                     BusyMessage = $"Building File List";
                     foreach (var fileContainer in selectedItems)
                     {
-                        var fullPath = LastPath + fileContainer.RelitivePath;
+                        var fullPath = LastPath + fileContainer.IgnorePath;
                         BusyMessage = $"Scanning for files and folders in: {fullPath}";
                         if (Directory.Exists(fullPath))
                         {
@@ -142,7 +167,7 @@ namespace BitTorrentSyncIgnore
 
                     foreach (var fileContainer in selectedItems)
                     {
-                        sb.Append(fileContainer.RelitivePath);
+                        sb.Append(fileContainer.IgnorePath);
                         sb.Append(LineEnding);
                     }
 
@@ -153,18 +178,15 @@ namespace BitTorrentSyncIgnore
 
                     foreach (var fileContainer in selectedItems)
                     {
-                        // Purge the directory, now that it exists
-                        if (fileContainer.IsFolder)
-                        {
                             var fullPath = LastPath + 
-                                           fileContainer.RelitivePath.Replace(
+                                           fileContainer.IgnorePath.Replace(
                                                DirectorySeperator, Path.DirectorySeparatorChar);
                             if (Directory.Exists(fullPath))
                             {
                                 BusyMessage = $"Deleting folder {fullPath}";
                                 DeleteRecursiveFolder(fullPath);
                             }
-                        }
+
                     }
 
                     IsBusy = false;
@@ -319,103 +341,154 @@ namespace BitTorrentSyncIgnore
                 if (File.Exists(IgnorePath))
                 {
                     var windowsLineEndings = IsWindowsLineEnding(IgnorePath);
-                    Dispatcher.BeginInvoke((Action)(() => IsLinux = !windowsLineEndings));
-                    
+                    Dispatcher.BeginInvoke((Action) (() => IsLinux = !windowsLineEndings));
+
                 }
 
                 BusyMessage = "Getting Folders...";
-                var folders = Directory.GetDirectories(LastPath, "*.*", SearchOption.AllDirectories);
+                var folders = Directory.GetDirectories(LastPath);
 
                 foreach (var folder in folders)
                 {
-                    var relitivePath = folder.Replace(LastPath, "").Replace(Path.DirectorySeparatorChar, DirectorySeperator);
+                    if (folder.Contains(SyncFolder)) continue;
 
-                    if (relitivePath.Contains(SyncFolder)) continue;
-
-                    var container = _fileDic.GetOrAdd(relitivePath, (x) => new FileContainer(x, true));
-
-                    Dispatcher.BeginInvoke((Action)(() => _files.Add(container)));
+                    _fileDic.TryAdd(folder, new FileContainer(LastPath, folder, DirectorySeperator));
                 }
 
-                BusyMessage = "Getting Files...";
-                //var files = Directory.GetFiles(LastPath, "*.*", SearchOption.AllDirectories);
-
-                //foreach (var file in files)
-                //{
-                //    var relitivePath = file.Replace(LastPath, "");
-
-                //    if (relitivePath.Contains(SyncFolder)) continue;
-
-                //    var container = _fileDic.GetOrAdd(relitivePath, (x) => new FileContainer(x, false));
-
-                //    Dispatcher.BeginInvoke((Action)(() => _files.Add(container)));
-                //}
-
-                 BusyMessage = "Reading Ignore File...";
+                BusyMessage = "Reading Ignore File...";
 
 
-                                       if (File.Exists(IgnorePath))
-                                       {
-                                           var ignoreLines = File.ReadAllLines(IgnorePath);
-                                           bool hitIgnore = false;
-                                           foreach (var line in ignoreLines)
-                                           {
-                                               if (line.Contains(FilesBelowComment) && hitIgnore == false)
-                                               {
-                                                   hitIgnore = true;
-                                                   continue;
-                                               }
+                if (File.Exists(IgnorePath))
+                {
+                    var ignoreLines = File.ReadAllLines(IgnorePath);
+                    bool hitIgnore = false;
+                    foreach (var line in ignoreLines)
+                    {
+                        if (line.Contains(FilesBelowComment) && hitIgnore == false)
+                        {
+                            hitIgnore = true;
+                            continue;
+                        }
 
-                                               if (hitIgnore == false) continue;
+                        if (hitIgnore == false) continue;
 
-                                               // If we are here, we have hit the line and can start processing
+                        // If we are here, we have hit the line and can start processing
 
-                                               if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#") || line.Contains(SyncFolder)) continue;
+                        if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#") || line.Contains(SyncFolder))
+                            continue;
 
-                                               // TODO: store in comment if folder or file.
-                                               var container = _fileDic.GetOrAdd(line,
-                                                   (x) =>
-                                                   {
-                                                       var result = new FileContainer(x, true);
-                                                       Dispatcher.BeginInvoke((Action)(() => _files.Add(result)));
-                                                       return result;
-                                                   });
+                        // TODO: store in comment if folder or file.
+                        var container = _fileDic.GetOrAdd(line,
+                            (path) =>
+                            {
+                                var adjustedPath = path.Replace('/', Path.DirectorySeparatorChar)
+                                    .Replace('\\', Path.DirectorySeparatorChar);
+                                var fullPath = LastPath + adjustedPath;
 
-                                               container.IsSelected = true;
+                                var result = new FileContainer(LastPath, fullPath, DirectorySeperator);
+                                
+                                return result;
+                            });
 
-                                           }
-                                       }
+                        container.IsSelected = true;
+
+                    }
+
+                    Action<FileContainer> addDirectories = null;
+                    addDirectories = ((fileC) =>
+                    {
+                        _files.Add(fileC);
+
+                        foreach (var childC in fileC.ChildFileContainers)
+                        {
+                            addDirectories(childC);
+                        }
+                    });
+                    
+                    Dispatcher.BeginInvoke((Action)(() =>
+                    {
+                        foreach (var fileContainer in _fileDic.Values)
+                        {
+                            addDirectories(fileContainer);
+                        }
+                    }));
+                }
 
             });
             await t;
             IsBusy = false;
         }
 
-        private class Sorter : IComparer<FileContainer>
-        {
-            public int Compare(FileContainer x, FileContainer y)
-            {
-                return string.Compare(x.RelitivePath, y.RelitivePath, StringComparison.CurrentCultureIgnoreCase);
-            }
-        }
-
         
+
+
     }
 
-    [DebuggerDisplay("File = {RelitivePath}")]
+    public class SorterName : IComparer<FileContainer>
+    {
+        public string Name => "Name";
+
+        public int Compare(FileContainer x, FileContainer y)
+        {
+            return string.Compare(x.IgnorePath, y.IgnorePath, StringComparison.CurrentCultureIgnoreCase);
+        }
+    }
+
+    public class SorterSize : IComparer<FileContainer>
+    {
+        public string Name => "Size";
+
+        public int Compare(FileContainer x, FileContainer y)
+        {
+            return y.Size.CompareTo(x.Size);
+        }
+    }
+
+    [DebuggerDisplay("File = {IgnorePath}, Size={Size}")]
     public class FileContainer : ViewModelBase
     {
-        private readonly bool _isFolder;
         private bool _isSelected;
         private int _bytes;
 
-        public FileContainer(string relitivePath, bool isFolder)
+        public FileContainer(string basePath, string fullPath, char osDirectorySeperator)
         {
-            _isFolder = isFolder;
-            RelitivePath = relitivePath;
+            IgnorePath = fullPath.Replace(basePath, "").Replace('/', osDirectorySeperator).Replace('\\', osDirectorySeperator);
+            FullPath = fullPath;
+
+
+            long size = 0;
+            // get sub directories here
+            if (Directory.Exists(FullPath))
+            {
+                var subDirs = Directory.GetDirectories(FullPath);
+
+                ChildFileContainers =
+                    subDirs.Select(path => new FileContainer(basePath, path, osDirectorySeperator)).ToList();
+
+                var files = Directory.GetFiles(FullPath);
+                size = files.Select(file => new FileInfo(file)).Select(fileInfo => fileInfo.Length).Sum();
+            }
+            else
+            {
+                ChildFileContainers = new List<FileContainer>();
+            }
+
+       
+
+            var subSizes = ChildFileContainers.Select(x => x.Size).Sum();
+
+            Size = size + subSizes;
         }
 
-        public string RelitivePath { get; private set; }
+        public List<FileContainer> ChildFileContainers { get; }
+
+        public string IgnorePath { get; }
+
+        public string FullPath { get; }
+
+        public long Size { get; set; }
+
+        public long SizeMB => Size/1024/1024;
 
         public bool IsSelected
         {
@@ -429,10 +502,6 @@ namespace BitTorrentSyncIgnore
             set { SetProperty(ref _bytes, value); }
         }
 
-        public bool IsFolder
-        {
-            get { return _isFolder; }
-        }
     }
 
 
