@@ -1,4 +1,5 @@
-﻿using FirstFloor.ModernUI.Windows.Controls;
+﻿using System.Windows;
+using FirstFloor.ModernUI.Windows.Controls;
 
 namespace BitTorrentSyncIgnore
 {
@@ -18,6 +19,16 @@ namespace BitTorrentSyncIgnore
         {
             this.DataContext = new MainWindowViewModel();
             base.OnApplyTemplate();
+        }
+
+        private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
+        {
+            MyPopup.IsOpen = true;
+        }
+
+        private void ButtonBase1_OnClick(object sender, RoutedEventArgs e)
+        {
+            MyPopup.IsOpen = false;
         }
     }
 }

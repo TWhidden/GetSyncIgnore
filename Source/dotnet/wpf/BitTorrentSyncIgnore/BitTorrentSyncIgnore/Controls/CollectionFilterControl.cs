@@ -3,8 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -12,35 +13,42 @@ using BitTorrentSyncIgnore.Collections;
 
 namespace BitTorrentSyncIgnore.Controls
 {
-    [TemplatePart(Name = "PART_SearchBox", Type = typeof(TextBox))]
-    [TemplatePart(Name = "PART_CollectionFilterContainer", Type=typeof(FrameworkElement))]
+    [TemplatePart(Name = PART_SearchBox, Type = typeof(TextBox))]
+    [TemplatePart(Name = PART_GridContainer, Type = typeof(Grid))]
+    [TemplatePart(Name = PART_SearchIcon, Type = typeof(FrameworkElement))]
     public class CollectionFilterControl : Control
     {
+        public const string PART_GridContainer = "PART_GridContainer";
+        public const string PART_SearchBox = "PART_SearchBox";
+        public const string PART_SearchIcon = "PART_SearchIcon";
+
         private TextBox _searchBox;
 
-        private object _filterLock = new object();
+        private CancellationTokenSource _delay;
 
-        private DateTime _lastKeyDown = DateTime.MinValue;
         private FrameworkElement _searchIcon;
-        private DispatcherTimerContainingAction _lastTimer = null;
 
-        public CollectionFilterControl()
+        public CollectionFilterControl() 
         {
-            FilteredCollection = new SortableObservableCollection<object, IComparer<object>>(new SortObject(""));
-
-            DefaultStyleKey = typeof(CollectionFilterControl);
+            FilteredCollection = new SortableObservableCollection<FileContainer, IComparer<FileContainer>>(new SorterName());
         }
 
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
-            _searchIcon = GetTemplateChild("PART_SearchIcon") as FrameworkElement;
-            _searchBox = GetTemplateChild("PART_SearchBox") as TextBox;
+            _searchIcon = GetTemplateChild(PART_SearchIcon) as FrameworkElement;
+            _searchBox = GetTemplateChild(PART_SearchBox) as TextBox;
+
             if(_searchBox == null)
                 throw new Exception("CollectionFilterControl expect template PART_SEARCHBOX to be TextBox");
             _searchBox.KeyUp += _searchBox_KeyUp;
             _searchBox.GotFocus += _searchBox_GotFocus;
             _searchBox.LostFocus += _searchBox_LostFocus;
+
+            if (_searchIcon != null)
+            {
+                _searchIcon.Height = ControlHeight;
+            }
         }
 
         void _searchBox_LostFocus(object sender, RoutedEventArgs e)
@@ -99,9 +107,9 @@ namespace BitTorrentSyncIgnore.Controls
         /// </summary>
         private static void OnSourceCollectionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            CollectionFilterControl target = (CollectionFilterControl)d;
-            IList oldSourceCollection = (IList)e.OldValue;
-            IList newSourceCollection = target.SourceCollection;
+            var target = (CollectionFilterControl)d;
+            var oldSourceCollection = (IList)e.OldValue;
+            var newSourceCollection = target.SourceCollection;
             target.OnSourceCollectionChanged(oldSourceCollection, newSourceCollection);
         }
 
@@ -138,82 +146,48 @@ namespace BitTorrentSyncIgnore.Controls
             RunFilter();
         }
 
-        private void RunFilter()
+        private async void RunFilter()
         {
-            if (_lastTimer != null)
+            _delay?.Cancel();
+
+            _delay = new CancellationTokenSource();
+            try
             {
-                _lastTimer.Stop();
-                _lastTimer = null;
+                await Task.Delay(500, _delay.Token);
+            }
+            catch (TaskCanceledException)
+            {
+                // request was canceled, return;
+                return;
             }
 
-            //if (_searchBox == null) return;
+            var currentText = _searchBox?.Text ?? string.Empty;
 
-            Action execute = (() => { 
-            lock (_filterLock)
+            var sourceCollection = SourceCollection.Cast<FileContainer>().ToList();
+
+            if (string.IsNullOrWhiteSpace(currentText))
             {
-                var currentText = ((_searchBox != null) ? _searchBox.Text : String.Empty);
-                Debug.WriteLine(string.Format("RunFilter() for {0}", currentText));
-
+                // When nothing is being filtered, we dont need to filter any thing.
+                FilteredCollection.Clear();
+                FilteredCollection.AddRange(sourceCollection, true);
+            }
+            else
+            {
                 // Remove any items in the filtered collection that are no longer available in the primary collection
-                var oldItems = (from x in FilteredCollection where !SourceCollection.Cast<object>().Contains(x) select x).ToList();
-                oldItems.ForEach(x=>FilteredCollection.Remove(x));
+                var oldItems = (from x in FilteredCollection where !sourceCollection.Contains(x) select x).ToList();
+                oldItems.ForEach(x => FilteredCollection.Remove(x));
 
                 // look at existing filtered items and remove those that do not match the filter
                 oldItems = (from x in FilteredCollection where !DoesContainString(x, currentText) select x).ToList();
                 oldItems.ForEach(x => FilteredCollection.Remove(x));
 
                 // Look at the source colleciton and find out what needs to be in the filtered collection
-                var newItems = (from x in SourceCollection.Cast<object>() where DoesContainString(x, currentText) && !FilteredCollection.Contains(x) select x).ToList();
-                FilteredCollection.AddRange(newItems, true); 
-
-                //FilteredCollection.Sort();
-
-                _lastTimer = null;
-            }
-            });
-
-            _lastTimer = SetTimeout(500, execute);
-
-        }
-
-       private class SortObject : IComparer<object>
-        {
-            private readonly string _fieldName;
-
-            public SortObject(string fieldName)
-            {
-                _fieldName = fieldName;
-            }
-
-            public int Compare(object x,
-                               object y)
-            {
-
-
-                return GetStringValue(x).CompareTo(GetStringValue(y));
-            }
-
-            private string GetStringValue(object o)
-            {
-                if (o == null) return null;
-
-                var property = o.GetType().GetProperty(_fieldName);
-                if (property == null) return string.Empty;
-
-                if (property.PropertyType == typeof(string))
-                {
-                    var s = property.GetValue(o, null) as string;
-                    if (s == null)
-                        return string.Empty;
-
-                    return s;
-                }
-
-                return string.Empty;
+                var newItems = (from x in sourceCollection where DoesContainString(x, currentText) && !FilteredCollection.Contains(x) select x).ToList();
+                FilteredCollection.AddRange(newItems, true);
             }
         }
 
-        
+      
 
         private bool DoesContainString(object o, string filter)
         {
@@ -230,7 +204,7 @@ namespace BitTorrentSyncIgnore.Controls
                     if (sv == null)
                         continue;
 
-                    string s = sv.ToString();
+                    var s = sv.ToString();
 
                     if (s.Trim().ToLower().Contains(filter.Trim().ToLower()))
                         return true;
@@ -243,8 +217,8 @@ namespace BitTorrentSyncIgnore.Controls
 
         #endregion
 
-        private SortableObservableCollection<object, IComparer<object>> _filteredCollection;
-        public SortableObservableCollection<object, IComparer<object>> FilteredCollection
+        private SortableObservableCollection<FileContainer, IComparer<FileContainer>> _filteredCollection;
+        public SortableObservableCollection<FileContainer, IComparer<FileContainer>> FilteredCollection
         {
             get { return _filteredCollection; }
             private set { _filteredCollection = value; }
@@ -274,9 +248,9 @@ namespace BitTorrentSyncIgnore.Controls
         /// </summary>
         private static void OnFieldNameChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            CollectionFilterControl target = (CollectionFilterControl)d;
-            StringList oldFieldName = (StringList)e.OldValue;
-            StringList newFieldName = (StringList) e.NewValue;
+            var target = (CollectionFilterControl)d;
+            var oldFieldName = (StringList)e.OldValue;
+            var newFieldName = (StringList) e.NewValue;
             target.OnFieldNameChanged(oldFieldName, newFieldName);
         }
 
@@ -285,17 +259,16 @@ namespace BitTorrentSyncIgnore.Controls
         /// </summary>
         protected virtual void OnFieldNameChanged(StringList oldFieldName, StringList newFieldName)
         {
-            string field = string.Empty;
+            var field = string.Empty;
 
             if (newFieldName != null && newFieldName.Count > 0)
             {
                 field = newFieldName[0];
             }
-            FilteredCollection.ChangeSort(new SortObject(field));
+            FilteredCollection.ChangeSort(new SorterName());
         }
 
         #endregion
-
 
         #region SorterOverride
 
@@ -303,16 +276,16 @@ namespace BitTorrentSyncIgnore.Controls
         /// SorterOverride Dependency Property
         /// </summary>
         public static readonly DependencyProperty SorterOverrideProperty =
-            DependencyProperty.Register("SorterOverride", typeof(IComparer<object>), typeof(CollectionFilterControl),
+            DependencyProperty.Register("SorterOverride", typeof(IComparer), typeof(CollectionFilterControl),
                 new FrameworkPropertyMetadata(null, new PropertyChangedCallback(OnSorterOverrideChanged)));
 
         /// <summary>
         /// Gets or sets the SorterOverride property. This dependency property 
         /// indicates ....
         /// </summary>
-        public IComparer<object> SorterOverride
+        public IComparer SorterOverride
         {
-            get { return (IComparer<object>)GetValue(SorterOverrideProperty); }
+            get { return (IComparer)GetValue(SorterOverrideProperty); }
             set { SetValue(SorterOverrideProperty, value); }
         }
 
@@ -321,45 +294,78 @@ namespace BitTorrentSyncIgnore.Controls
         /// </summary>
         private static void OnSorterOverrideChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            CollectionFilterControl target = (CollectionFilterControl)d;
-            IComparer<object> oldSorterOverride = (IComparer<object>)e.OldValue;
-            IComparer<object> newSorterOverride = (IComparer<object>)e.NewValue;
+            var target = (CollectionFilterControl)d;
+            var oldSorterOverride = (IComparer<FileContainer>)e.OldValue;
+            var newSorterOverride = (IComparer<FileContainer>)e.NewValue;
             target.OnSorterOverrideChanged(oldSorterOverride, newSorterOverride);
         }
 
         /// <summary>
         /// Provides derived classes an opportunity to handle changes to the SorterOverride property.
         /// </summary>
-        protected virtual void OnSorterOverrideChanged(IComparer<object> oldSorterOverride, IComparer<object> newSorterOverride)
+        protected virtual void OnSorterOverrideChanged(IComparer<FileContainer> oldSorterOverride, IComparer<FileContainer> newSorterOverride)
         {
             FilteredCollection.ChangeSort(newSorterOverride);
         }
 
         #endregion
 
+        #region ControlHeight
 
-        private static DispatcherTimerContainingAction SetTimeout(int milliseconds, Action func)
+        /// <summary>
+        /// ControlHeight Dependency Property
+        /// </summary>
+        public static readonly DependencyProperty ControlHeightProperty =
+            DependencyProperty.Register("ControlHeight", typeof(double), typeof(CollectionFilterControl),
+                new FrameworkPropertyMetadata((double)20,
+                    FrameworkPropertyMetadataOptions.None,
+                    new PropertyChangedCallback(OnControlHeightChanged),
+                    new CoerceValueCallback(CoerceControlHeight)));
+
+        /// <summary>
+        /// Gets or sets the ControlHeight property. This dependency property 
+        /// indicates ....
+        /// </summary>
+        public double ControlHeight
         {
-            //Debug.Write("SetTimeout");
-            var timer = new DispatcherTimerContainingAction
+            get { return (double)GetValue(ControlHeightProperty); }
+            set { SetValue(ControlHeightProperty, value); }
+        }
+
+        /// <summary>
+        /// Handles changes to the ControlHeight property.
+        /// </summary>
+        private static void OnControlHeightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var target = (CollectionFilterControl)d;
+            var oldControlHeight = (double)e.OldValue;
+            var newControlHeight = target.ControlHeight;
+            target.OnControlHeightChanged(oldControlHeight, newControlHeight);
+        }
+
+        /// <summary>
+        /// Provides derived classes an opportunity to handle changes to the ControlHeight property.
+        /// </summary>
+        protected virtual void OnControlHeightChanged(double oldControlHeight, double newControlHeight)
+        {
+            if (_searchIcon != null)
             {
-                Interval = new TimeSpan(0, 0, 0, 0, milliseconds),
-                Action = func
-            };
-            timer.Tick += _onTimeout;
-            timer.Start();
-            return timer;
+                _searchIcon.Height = newControlHeight;
+            }
         }
 
-        private static void _onTimeout(object sender, EventArgs arg)
+        /// <summary>
+        /// Coerces the ControlHeight value.
+        /// </summary>
+        private static object CoerceControlHeight(DependencyObject d, object value)
         {
-            //Debug.Write("_onTimeout");
+            var target = (CollectionFilterControl)d;
+            var desiredControlHeight = (double)value;
 
-            var t = sender as DispatcherTimerContainingAction;
-            t.Stop();
-            t.Action();
-            t.Tick -= _onTimeout;
+            return desiredControlHeight;
         }
+
+        #endregion
 
         private class DispatcherTimerContainingAction : DispatcherTimer
         {
@@ -375,6 +381,7 @@ namespace BitTorrentSyncIgnore.Controls
 
             public Action Action { get; set; }
         }
+
     }
 
     public class StringListTypeConverter : TypeConverter

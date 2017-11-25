@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -11,15 +13,22 @@ using BitTorrentSyncIgnore.Bases;
 using BitTorrentSyncIgnore.Collections;
 using BitTorrentSyncIgnore.Helpers.Ionic.Utils;
 using BitTorrentSyncIgnore.Properties;
-using FirstFloor.ModernUI.Windows.Controls;
 using Prism.Commands;
+using TMDbLib.Client;
+using IPrompt;
+using BitTorrentSyncIgnore.Extensions;
+using System.Threading;
+using BitTorrentSyncIgnore.Annotations;
+using Newtonsoft.Json;
+using TMDbLib.Objects.Search;
+using RateLimiter;
 
 namespace BitTorrentSyncIgnore
 {
     public class MainWindowViewModel : ViewModelBase
     {
         public readonly SortableObservableCollection<FileContainer, IComparer<FileContainer>> _files = new SortableObservableCollection<FileContainer, IComparer<FileContainer>>(new SorterName());
-        public readonly ConcurrentDictionary<string, FileContainer> _fileDic = new ConcurrentDictionary<string, FileContainer>();
+        public readonly ConcurrentDictionary<string, FileContainer> FileDic = new ConcurrentDictionary<string, FileContainer>();
         private bool _isValidSyncFolder;
         private string _lastPath = Settings.Default.LastPath;
         private bool _isBusy;
@@ -27,11 +36,14 @@ namespace BitTorrentSyncIgnore
         private DelegateCommand _commandSelectPath;
         private DelegateCommand _commandSaveChanges;
         private DelegateCommand _commandRefresh;
+        private DelegateCommand _commandScanTmdb;
         private bool _isLinux = Settings.Default.IsLinux;
-        private IComparer<FileContainer> _selectedSorter;
-        private List<IComparer<FileContainer>> _sortOptions = new List<IComparer<FileContainer>>();
+        private IComparer<FileContainer> _selectedSorter = new SorterName();
+        private SyncConfig _config;
 
         private const string SyncFolder = ".sync";
+        private const string SyncIgnoreConfigFolder = "SyncConfig";
+        private const string SyncConfigFile = "SyncConfig.json";
         private const string SyncIgnoreFileName = "IgnoreList";
         private const string FilesBelowComment = "# BitTorrentSync Ignore Program - Only files below are managed #";
 
@@ -39,10 +51,118 @@ namespace BitTorrentSyncIgnore
         {
             ValidateIsSyncFolder();
 
-            _selectedSorter = new SorterName();
+            SortOptions =  new List<IComparer<FileContainer>>
+            {
+                _selectedSorter,
+                new SorterSize(),
+                new SorterRating(),
+                new SorterPopularity()
+            };
 
-            SortOptions.Add(_selectedSorter);
-            SortOptions.Add(new SorterSize());
+        }
+
+        private async void ProcessTmDbInfo()
+        {
+            try
+            {
+                IsBusy = true;
+
+                BusyMessage = "Saving Config...";
+
+                SaveConfig();
+
+                if (string.IsNullOrWhiteSpace(Settings.Default.TMDbApiKey))
+                {
+                    // Prompt user for API key
+                    // Prompt from : https://github.com/ramer/IPrompt
+                    var prompt = IInputBox.Show("Enter your Movie Database API Key", "API Key Required");
+                    if (string.IsNullOrWhiteSpace(prompt))
+                    {
+                        IMessageBox.Show("The Movie Database Key is required for this service. Signup for the API key (free) at www.themoviedb.org");
+                        return;
+                    }
+
+                    Settings.Default.TMDbApiKey = prompt;
+                    Settings.Default.Save();
+                }
+
+                // API using nuget package -- code here;  https://github.com/LordMike/TMDbLib
+                var client = new TMDbClient(Settings.Default.TMDbApiKey);
+                await client.AuthenticationRequestAutenticationTokenAsync();
+                
+                // API permits only 40 calls per 10 seconds. using this nuget package to limit it to 35.
+                var timeconstraint = TimeLimiter.GetFromMaxCountByInterval(35, TimeSpan.FromSeconds(10));
+
+                // loop over the folders and find the folders that dont have a metadata data file in them
+                foreach (var f in _files.Where(x => !x.IsSelected))
+                {
+                    if (f.TheMovieDatabaseData != null) continue;
+
+                    var folderName = f.LocalFolderPath.Substring(1, f.LocalFolderPath.Length -1);
+
+                    if (folderName.Contains(DirectorySeperator)) continue;
+
+                    var name = f.SingleDirectoryName.GetNameBeforeYear();
+
+                    if (Config.MovieOption)
+                    {
+                        // Currently dont support season info lookup. Just primary anme. 
+                        if (f.SingleDirectoryName.ToLower().StartsWith("season")) continue;
+
+                        var year = f.SingleDirectoryName.GetYear();
+                        if (year.HasValue)
+                        {
+                            BusyMessage = $"Searching For Movie '{name}' ({year.Value})";
+                            await timeconstraint.Perform(async () =>
+                            {
+                                var result = await client.SearchMovieAsync(name, year: year.Value);
+                                if (result.TotalResults >= 1)
+                                {
+                                    var r = result.Results[0];
+                                    var json = JsonConvert.SerializeObject(r, Formatting.Indented);
+                                    File.WriteAllText(f.TheMovieDatabaseFileName, json);
+                                }
+                            });
+                        }
+                    }
+                    else if(Config.TvOption)
+                    {
+                        BusyMessage = $"Searching For Tv Show '{name}'";
+                        await timeconstraint.Perform(async () =>
+                        {
+                            var result = await client.SearchTvShowAsync(name);
+                            if (result.TotalResults >= 1)
+                            {
+                                var r = result.Results[0];
+                                var json = JsonConvert.SerializeObject(r, Formatting.Indented);
+                                File.WriteAllText(f.TheMovieDatabaseFileName, json);
+                            }
+                        });
+                    }
+                }
+            }
+            catch (TaskCanceledException t)
+            {
+                // Ignore, Task was canceled. 
+            }
+            catch (Exception ex)
+            {
+                IMessageBox.Show(ex.Message);
+                if (ex.Message.Contains("unauthorized"))
+                {
+                    Settings.Default.TMDbApiKey = string.Empty;
+                    Settings.Default.Save();
+                }
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        public Task MyMethod(CancellationToken t = default(CancellationToken))
+        {
+            return Task.FromResult(0);
         }
 
         public DelegateCommand CommandSelectPath => _commandSelectPath ?? (_commandSelectPath = new DelegateCommand(OnCommandSelectPath));
@@ -53,15 +173,11 @@ namespace BitTorrentSyncIgnore
         public DelegateCommand CommandRefresh
             => _commandRefresh ?? (_commandRefresh = new DelegateCommand(OnCommandRefresh, OnCanCommandRefresh));
 
-        public List<IComparer<FileContainer>> SortOptions
-        {
-            get { return _sortOptions; }
-            set { SetProperty(ref _sortOptions, value); }
-        }
+        public List<IComparer<FileContainer>> SortOptions { get; }
 
         public IComparer<FileContainer> SortOptionSelected
         {
-            get { return _selectedSorter; }
+            get => _selectedSorter;
             set
             {
                 if (SetProperty(ref _selectedSorter, value))
@@ -120,7 +236,7 @@ namespace BitTorrentSyncIgnore
                     BusyMessage = $"Building File List";
                     foreach (var fileContainer in selectedItems)
                     {
-                        var fullPath = LastPath + fileContainer.IgnorePath;
+                        var fullPath = LastPath + fileContainer.LocalFolderPath;
                         BusyMessage = $"Scanning for files and folders in: {fullPath}";
                         if (Directory.Exists(fullPath))
                         {
@@ -167,7 +283,7 @@ namespace BitTorrentSyncIgnore
 
                     foreach (var fileContainer in selectedItems)
                     {
-                        sb.Append(fileContainer.IgnorePath);
+                        sb.Append(fileContainer.LocalFolderPath);
                         sb.Append(LineEnding);
                     }
 
@@ -179,7 +295,7 @@ namespace BitTorrentSyncIgnore
                     foreach (var fileContainer in selectedItems)
                     {
                             var fullPath = LastPath + 
-                                           fileContainer.IgnorePath.Replace(
+                                           fileContainer.LocalFolderPath.Replace(
                                                DirectorySeperator, Path.DirectorySeparatorChar);
                             if (Directory.Exists(fullPath))
                             {
@@ -264,13 +380,13 @@ namespace BitTorrentSyncIgnore
         /// </summary>
         public bool IsValidSyncFolder
         {
-            get { return _isValidSyncFolder; }
-            set { SetProperty(ref _isValidSyncFolder, value); }
+            get => _isValidSyncFolder;
+            set => SetProperty(ref _isValidSyncFolder, value);
         }
 
         public string LastPath
         {
-            get { return _lastPath; }
+            get => _lastPath;
             set
             {
                 if (SetProperty(ref _lastPath, value))
@@ -284,7 +400,7 @@ namespace BitTorrentSyncIgnore
 
         public bool IsLinux
         {
-            get { return _isLinux; }
+            get => _isLinux;
             set {
                 if (SetProperty(ref _isLinux, value))
                 {
@@ -301,14 +417,14 @@ namespace BitTorrentSyncIgnore
 
         public bool IsBusy
         {
-            get { return _isBusy; }
-            set { SetProperty(ref _isBusy, value); }
+            get => _isBusy;
+            set => SetProperty(ref _isBusy, value);
         }
 
         public string BusyMessage
         {
-            get { return _busyMessage; }
-            set { SetProperty(ref _busyMessage, value); }
+            get => _busyMessage;
+            set => SetProperty(ref _busyMessage, value);
         }
 
         private void ValidateIsSyncFolder()
@@ -322,6 +438,8 @@ namespace BitTorrentSyncIgnore
 
             if (!IsValidSyncFolder) return;
 
+            LoadConfig();
+
             LoadPath();
         }
 
@@ -331,7 +449,7 @@ namespace BitTorrentSyncIgnore
         {
             IsBusy = true;
 
-            _fileDic.Clear();
+            FileDic.Clear();
             _files.Clear();
             var t = Task.Run(() =>
             {
@@ -345,14 +463,26 @@ namespace BitTorrentSyncIgnore
 
                 }
 
+                BusyMessage = "Reading Config...";
+
                 BusyMessage = "Getting Folders...";
                 var folders = Directory.GetDirectories(LastPath);
 
-                foreach (var folder in folders)
+                for (var index = 0; index < folders.Length; index++)
                 {
+                    var folder = folders[index];
                     if (folder.Contains(SyncFolder)) continue;
 
-                    _fileDic.TryAdd(folder, new FileContainer(LastPath, folder, DirectorySeperator));
+                    var directory = new DirectoryInfo(folder).Name;
+                    // Dont show hidden folders such as the .stream folder. 
+                    if (directory.StartsWith(".")) continue;
+
+                    // We will have some config data in this folder.  This will be synced with the users, but just now givin the option to remove. 
+                    if (directory == SyncIgnoreConfigFolder) continue;
+
+                    BusyMessage = $"Processing Folder {index + 1} / {folders.Length}: {directory}";
+
+                    FileDic.TryAdd(folder, new FileContainer(LastPath, folder, DirectorySeperator));
                 }
 
                 BusyMessage = "Reading Ignore File...";
@@ -378,7 +508,7 @@ namespace BitTorrentSyncIgnore
                             continue;
 
                         // TODO: store in comment if folder or file.
-                        var container = _fileDic.GetOrAdd(line,
+                        var container = FileDic.GetOrAdd(line,
                             (path) =>
                             {
                                 var adjustedPath = path.Replace('/', Path.DirectorySeparatorChar)
@@ -407,7 +537,7 @@ namespace BitTorrentSyncIgnore
                     
                     Dispatcher.BeginInvoke((Action)(() =>
                     {
-                        foreach (var fileContainer in _fileDic.Values)
+                        foreach (var fileContainer in FileDic.Values)
                         {
                             addDirectories(fileContainer);
                         }
@@ -419,9 +549,87 @@ namespace BitTorrentSyncIgnore
             IsBusy = false;
         }
 
-        
+        public SyncConfig Config
+        {
+            get { return _config; }
+            set { SetProperty(ref _config, value); }
+        }
+
+        private void LoadConfig()
+        {
+            if(Config != null)
+            {
+                Config.PropertyChanged -= Config_PropertyChanged;
+            }
+
+            // Loading Config
+            var configPath = ConfigPath();
+
+            if (File.Exists(configPath))
+            {
+                try
+                {
+                    var fileText = File.ReadAllText(configPath);
+                    Config = JsonConvert.DeserializeObject<SyncConfig>(fileText);
+                }
+                catch(Exception ex)
+                {
+                    IMessageBox.Show("Can't load config. Error: " + ex.Message);
+                }
+            }
+            
+            if(Config == null) Config = new SyncConfig();
 
 
+            Config.PropertyChanged += Config_PropertyChanged;
+        }
+
+        public void SaveConfig()
+        {
+            var configPath = ConfigPath();
+            try
+            {
+                var text = JsonConvert.SerializeObject(Config);
+
+                var directory = Path.GetDirectoryName(configPath);
+                if (!Directory.Exists(directory))
+                    Directory.CreateDirectory(directory);
+
+                File.WriteAllText(configPath, text);
+            }
+            catch(Exception ex)
+            {
+                IMessageBox.Show("Can't save config. Error: " + ex.Message);
+            }
+        }
+
+        private void Config_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case "MovieOption":
+                case "TvOption":
+                    ProcessTmDbInfo();
+                    break;
+            }
+        }
+
+        private string ConfigPath()
+        {
+            return Path.Combine(LastPath, SyncIgnoreConfigFolder, SyncConfigFile);
+        }
+
+        public DelegateCommand CommandScanTmdbChanges => _commandScanTmdb ?? (_commandScanTmdb = new DelegateCommand(ProcessTmDbInfo));
+    }
+
+    public class SorterTmdb : IComparer<FileContainer>
+    {
+        public string Name => "Name";
+
+        public int Compare(FileContainer x, FileContainer y)
+        {
+            return string.Compare(x.LocalFolderPath, y.LocalFolderPath, StringComparison.CurrentCultureIgnoreCase);
+        }
     }
 
     public class SorterName : IComparer<FileContainer>
@@ -430,7 +638,7 @@ namespace BitTorrentSyncIgnore
 
         public int Compare(FileContainer x, FileContainer y)
         {
-            return string.Compare(x.IgnorePath, y.IgnorePath, StringComparison.CurrentCultureIgnoreCase);
+            return string.Compare(x.LocalFolderPath, y.LocalFolderPath, StringComparison.CurrentCultureIgnoreCase);
         }
     }
 
@@ -444,7 +652,27 @@ namespace BitTorrentSyncIgnore
         }
     }
 
-    [DebuggerDisplay("File = {IgnorePath}, Size={Size}")]
+    public class SorterRating : IComparer<FileContainer>
+    {
+        public string Name => "Rating";
+
+        public int Compare(FileContainer x, FileContainer y)
+        {
+            return y.VoteAverage.CompareTo(x.VoteAverage);
+        }
+    }
+
+    public class SorterPopularity : IComparer<FileContainer>
+    {
+        public string Name => "Popularity";
+
+        public int Compare(FileContainer x, FileContainer y)
+        {
+            return y.VoteCounts.CompareTo(x.VoteCounts);
+        }
+    }
+
+    [DebuggerDisplay("File = {LocalFolderPath}, Size={Size}")]
     public class FileContainer : ViewModelBase
     {
         private bool _isSelected;
@@ -452,9 +680,9 @@ namespace BitTorrentSyncIgnore
 
         public FileContainer(string basePath, string fullPath, char osDirectorySeperator)
         {
-            IgnorePath = fullPath.Replace(basePath, "").Replace('/', osDirectorySeperator).Replace('\\', osDirectorySeperator);
+            LocalFolderPath = fullPath.Replace(basePath, "").Replace('/', osDirectorySeperator).Replace('\\', osDirectorySeperator);
             FullPath = fullPath;
-
+            SingleDirectoryName = new DirectoryInfo(FullPath).Name;
 
             long size = 0;
             // get sub directories here
@@ -473,18 +701,31 @@ namespace BitTorrentSyncIgnore
                 ChildFileContainers = new List<FileContainer>();
             }
 
-       
-
             var subSizes = ChildFileContainers.Select(x => x.Size).Sum();
 
             Size = size + subSizes;
+
+            TheMovieDatabaseFileName = Path.Combine(fullPath, SingleDirectoryName) + ".tmdb";
+            if (File.Exists(TheMovieDatabaseFileName))
+            {
+                try
+                {
+                    TheMovieDatabaseData = JsonConvert.DeserializeObject<SearchMovie>(File.ReadAllText(TheMovieDatabaseFileName));
+                }
+                catch
+                {
+                    // Ignore
+                }
+            }
         }
 
         public List<FileContainer> ChildFileContainers { get; }
 
-        public string IgnorePath { get; }
+        public string LocalFolderPath { get; }
 
         public string FullPath { get; }
+
+        public string SingleDirectoryName { get; }
 
         public long Size { get; set; }
 
@@ -492,16 +733,70 @@ namespace BitTorrentSyncIgnore
 
         public bool IsSelected
         {
-            get { return _isSelected; }
-            set { SetProperty(ref _isSelected, value); }
+            get => _isSelected;
+            set => SetProperty(ref _isSelected, value);
         }
 
         public int Bytes
         {
-            get { return _bytes; }
-            set { SetProperty(ref _bytes, value); }
+            get => _bytes;
+            set => SetProperty(ref _bytes, value);
         }
 
+        public double VoteAverage => TheMovieDatabaseData?.VoteAverage ?? 0.0d;
+
+        public double VoteCounts => TheMovieDatabaseData?.VoteCount ?? 0.0d;
+
+        public SearchMovie TheMovieDatabaseData { get; set; }
+
+        public string TheMovieDatabaseFileName { get; }
+    }
+
+    public abstract class TypeOptionsBase : ViewModelBase
+    {
+        bool _isSelected;
+
+        public abstract string Name { get; }
+
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set => SetProperty(ref _isSelected, value);
+        }
+    }
+
+    public class SyncConfig : INotifyPropertyChanged
+    {
+        private bool _movieOption;
+        private bool _tvOption;
+
+        public bool MovieOption
+        {
+            get => _movieOption;
+            set
+            {
+                _movieOption = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool TvOption
+        {
+            get => _tvOption;
+            set
+            {
+                _tvOption = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        [NotifyPropertyChangedInvocator]
+        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
 

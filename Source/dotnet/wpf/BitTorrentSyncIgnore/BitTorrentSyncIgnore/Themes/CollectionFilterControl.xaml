@@ -14,7 +14,7 @@
                     		<TextBox  x:Name="PART_SearchBox" Width="Auto" Style="{DynamicResource TextBoxStyle}" d:LayoutOverrides="Height" />
                     		<Viewbox x:Name="PART_SearchIcon" Margin="4,0,0,0" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False">
                     			<Canvas Height="20" Width="15">
-                    				<Ellipse Stroke="#FFBEBEBE" Width="10" Height="10" StrokeThickness="2" d:LayoutOverrides="Margin" Canvas.Top="3.6"/>
+                    				<Ellipse Stroke="#FFBEBEBE" Width="10" Height="10" StrokeThickness="2" Canvas.Top="3.6"/>
                     				<Path Data="M55,12 L61.62465,17.366947" HorizontalAlignment="Stretch" Height="7.367" Margin="0" Stretch="Fill" Stroke="#FFBEBEBE" StrokeThickness="2" VerticalAlignment="Stretch" Width="8.625" Canvas.Left="6.481" Canvas.Top="10.16"/>
                     			</Canvas>
                     		</Viewbox>
