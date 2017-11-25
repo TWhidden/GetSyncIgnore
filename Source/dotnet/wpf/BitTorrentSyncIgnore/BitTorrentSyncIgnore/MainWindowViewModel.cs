@@ -94,15 +94,16 @@ namespace BitTorrentSyncIgnore
                 var timeconstraint = TimeLimiter.GetFromMaxCountByInterval(35, TimeSpan.FromSeconds(10));
 
                 // loop over the folders and find the folders that dont have a metadata data file in them
-                foreach (var f in _files.Where(x => !x.IsSelected))
+                var foldersToProcess = _files.Where(x => !x.IsSelected && x.TheMovieDatabaseData == null).ToList();
+                for (var index = 0; index < foldersToProcess.Count; index++)
                 {
-                    if (f.TheMovieDatabaseData != null) continue;
-
-                    var folderName = f.LocalFolderPath.Substring(1, f.LocalFolderPath.Length -1);
+                    var f = foldersToProcess[index];
+                    var folderName = f.LocalFolderPath.Substring(1, f.LocalFolderPath.Length - 1);
 
                     if (folderName.Contains(DirectorySeperator)) continue;
 
                     var name = f.SingleDirectoryName.GetNameBeforeYear();
+                    if (name.EndsWith("-")) name = name.Substring(0, name.Length - 1).Trim();
 
                     if (Config.MovieOption)
                     {
@@ -112,29 +113,31 @@ namespace BitTorrentSyncIgnore
                         var year = f.SingleDirectoryName.GetYear();
                         if (year.HasValue)
                         {
-                            BusyMessage = $"Searching For Movie '{name}' ({year.Value})";
+                            BusyMessage = $"Searching For Movie [{index + 1} / {foldersToProcess.Count}] '{name}' ({year.Value})";
                             await timeconstraint.Perform(async () =>
                             {
                                 var result = await client.SearchMovieAsync(name, year: year.Value);
                                 if (result.TotalResults >= 1)
                                 {
-                                    var r = result.Results[0];
-                                    var json = JsonConvert.SerializeObject(r, Formatting.Indented);
+                                    f.TheMovieDatabaseData = result.Results.OrderByDescending(x => x.VoteCount)
+                                        .FirstOrDefault();
+                                    var json = JsonConvert.SerializeObject(f.TheMovieDatabaseData, Formatting.Indented);
                                     File.WriteAllText(f.TheMovieDatabaseFileName, json);
                                 }
                             });
                         }
                     }
-                    else if(Config.TvOption)
+                    else if (Config.TvOption)
                     {
-                        BusyMessage = $"Searching For Tv Show '{name}'";
+                        BusyMessage = $"Searching For Tv [{index + 1} / {foldersToProcess.Count}] '{name}')";
                         await timeconstraint.Perform(async () =>
                         {
                             var result = await client.SearchTvShowAsync(name);
                             if (result.TotalResults >= 1)
                             {
-                                var r = result.Results[0];
-                                var json = JsonConvert.SerializeObject(r, Formatting.Indented);
+                                f.TheMovieDatabaseData =
+                                    result.Results.OrderByDescending(x => x.VoteCount).FirstOrDefault();
+                                var json = JsonConvert.SerializeObject(f.TheMovieDatabaseData, Formatting.Indented);
                                 File.WriteAllText(f.TheMovieDatabaseFileName, json);
                             }
                         });
@@ -551,8 +554,8 @@ namespace BitTorrentSyncIgnore
 
         public SyncConfig Config
         {
-            get { return _config; }
-            set { SetProperty(ref _config, value); }
+            get => _config;
+            set => SetProperty(ref _config, value);
         }
 
         private void LoadConfig()
@@ -677,6 +680,7 @@ namespace BitTorrentSyncIgnore
     {
         private bool _isSelected;
         private int _bytes;
+        private SearchMovieTvBase _theMovieDatabaseData;
 
         public FileContainer(string basePath, string fullPath, char osDirectorySeperator)
         {
@@ -747,7 +751,16 @@ namespace BitTorrentSyncIgnore
 
         public double VoteCounts => TheMovieDatabaseData?.VoteCount ?? 0.0d;
 
-        public SearchMovie TheMovieDatabaseData { get; set; }
+        public SearchMovieTvBase TheMovieDatabaseData
+        {
+            get => _theMovieDatabaseData;
+            set
+            {
+                SetProperty(ref _theMovieDatabaseData, value);
+                OnPropertyChanged(()=>VoteAverage);
+                OnPropertyChanged(() => VoteCounts);
+            }
+        }
 
         public string TheMovieDatabaseFileName { get; }
     }
